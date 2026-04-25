@@ -198,6 +198,12 @@
   .toast i{color:var(--gold);}
 
   @media print{body *{visibility:hidden;}#printArea,#printArea *{visibility:visible;}#printArea{position:absolute;left:0;top:0;width:100%;}.modal-footer,.modal-close{display:none!important;}}
+
+  /* TIP BUTTONS */
+  .tip-btn{background:white;border:1px solid var(--border);border-radius:8px;padding:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--mid);transition:all .18s;font-weight:500;}
+  .tip-btn:hover{border-color:var(--rose);color:var(--rose);background:#fff5f2;}
+  .tip-btn.active{background:var(--deep-rose);color:white;border-color:var(--deep-rose);}
+  .tip-btn.tip-none.active{background:var(--light-mid);border-color:var(--light-mid);}
 </style>
 </head>
 <body>
@@ -376,7 +382,21 @@
     <div class="modal-body">
       <p style="font-size:13px;color:var(--mid);margin-bottom:1rem;">Confirma o ajusta el precio antes de cobrar.</p>
       <div id="cobrarInfo" style="background:var(--cream);border-radius:8px;padding:12px;margin-bottom:1rem;font-size:13px;line-height:1.8;"></div>
-      <div class="form-group"><label class="form-label">Precio final a cobrar</label><input type="number" id="cobrarPrecio" class="form-control" min="0" step="0.01"></div>
+      <div class="form-group"><label class="form-label">Precio del servicio</label><input type="number" id="cobrarPrecio" class="form-control" min="0" step="0.01" oninput="recalcTotal()"></div>
+      <div class="form-group">
+        <label class="form-label">Propina <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--light-mid);">(opcional)</span></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;" id="tipBtns">
+          <button type="button" class="tip-btn" onclick="setTipPct(10)">10%</button>
+          <button type="button" class="tip-btn" onclick="setTipPct(15)">15%</button>
+          <button type="button" class="tip-btn" onclick="setTipPct(20)">20%</button>
+          <button type="button" class="tip-btn tip-none" onclick="setTipPct(0)">Sin propina</button>
+        </div>
+        <input type="number" id="cobrarPropina" class="form-control" min="0" step="0.01" placeholder="O escribe un monto manual" oninput="recalcTotal()">
+      </div>
+      <div style="background:var(--dark);color:var(--cream);border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:.5rem;">
+        <span style="font-size:13px;opacity:.8;">Total a cobrar</span>
+        <span id="cobrarTotal" style="font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:600;color:var(--gold);">$0.00</span>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCobrar')">Cancelar</button>
@@ -609,14 +629,38 @@ function renderCitas(){
 function abrirCobrar(id){
   citaActual=citas.find(c=>c.id===id); if(!citaActual)return;
   $('cobrarInfo').innerHTML=`<b>${esc(citaActual.nombre)}</b><br>${citaActual.telefono?`<i class="fas fa-phone fa-xs"></i> ${esc(citaActual.telefono)}<br>`:''}<i class="fas fa-scissors fa-xs"></i> ${esc(citaActual.servicio)}<br><i class="fas fa-calendar fa-xs"></i> ${fmtDate(citaActual.fecha)}${citaActual.hora?' · '+citaActual.hora:''}`;
-  $('cobrarPrecio').value=citaActual.precio; openModal('modalCobrar');
+  $('cobrarPrecio').value=citaActual.precio;
+  $('cobrarPropina').value='';
+  document.querySelectorAll('.tip-btn').forEach(b=>b.classList.remove('active'));
+  recalcTotal();
+  openModal('modalCobrar');
 }
 window.abrirCobrar=abrirCobrar;
 
+function recalcTotal(){
+  const precio=parseFloat($('cobrarPrecio').value)||0;
+  const propina=parseFloat($('cobrarPropina').value)||0;
+  $('cobrarTotal').textContent='$'+fmtMoney(precio+propina)+' MXN';
+}
+window.recalcTotal=recalcTotal;
+
+function setTipPct(pct){
+  document.querySelectorAll('.tip-btn').forEach(b=>b.classList.remove('active'));
+  // mark active button
+  const btns=document.querySelectorAll('.tip-btn');
+  const labels={'10':0,'15':1,'20':2,'0':3};
+  const idx=labels[String(pct)]; if(idx!==undefined) btns[idx].classList.add('active');
+  const precio=parseFloat($('cobrarPrecio').value)||0;
+  $('cobrarPropina').value=pct>0?(precio*pct/100).toFixed(2):'';
+  recalcTotal();
+}
+window.setTipPct=setTipPct;
+
 async function confirmarCobro(){
   const precio=parseFloat($('cobrarPrecio').value)||0;
+  const propina=parseFloat($('cobrarPropina').value)||0;
   const uid=window._uid;
-  const cobro={citaId:citaActual.id,nombre:citaActual.nombre,telefono:citaActual.telefono||'',servicio:citaActual.servicio,precio,fechaCobro:new Date().toISOString()};
+  const cobro={citaId:citaActual.id,nombre:citaActual.nombre,telefono:citaActual.telefono||'',servicio:citaActual.servicio,precio,propina,total:precio+propina,fechaCobro:new Date().toISOString()};
   setSyncing('syncing');
   try{
     await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'cobros'),cobro);
@@ -628,6 +672,8 @@ window.confirmarCobro=confirmarCobro;
 
 function mostrarRecibo(cobro){
   const fecha=new Date(cobro.fechaCobro);
+  const propina=cobro.propina||0;
+  const total=cobro.total||(cobro.precio+propina);
   $('reciboContent').innerHTML=`
     <div class="receipt-header">
       <div class="receipt-biz-name">${esc(config.nombre||'StarShine Nails')}</div>
@@ -642,7 +688,11 @@ function mostrarRecibo(cobro){
     ${cobro.telefono?`<div class="receipt-row"><span class="label">Tel:</span><span class="value">${esc(cobro.telefono)}</span></div>`:''}
     <div class="receipt-row"><span class="label">Servicio:</span><span class="value">${esc(cobro.servicio)}</span></div>
     <hr class="receipt-divider">
-    <div class="receipt-total"><span>TOTAL:</span><span>$${fmtMoney(cobro.precio)} MXN</span></div>
+    <div class="receipt-row"><span class="label">Servicio:</span><span class="value">$${fmtMoney(cobro.precio)} MXN</span></div>
+    ${propina>0?`<div class="receipt-row"><span class="label">Propina:</span><span class="value" style="color:#6aaa5e;">$${fmtMoney(propina)} MXN</span></div>`:''}
+    <hr class="receipt-divider">
+    <div class="receipt-total"><span>TOTAL:</span><span>$${fmtMoney(total)} MXN</span></div>
+    ${propina>0?`<div style="text-align:center;font-size:11px;color:var(--light-mid);margin-top:4px;">Incluye $${fmtMoney(propina)} MXN de propina 💝</div>`:''}
     <hr class="receipt-divider">
     <div class="receipt-thanks">¡Gracias por tu preferencia!<br>Vuelve pronto. 💖</div>`;
   openModal('modalRecibo');
@@ -652,24 +702,44 @@ function mostrarRecibo(cobro){
 function renderHistorial(){
   const el=$('historialContent');
   if(!cobros.length){ el.innerHTML='<div class="empty-state"><i class="fas fa-receipt"></i><p>Aún no hay cobros</p></div>'; return; }
-  const total=cobros.reduce((s,c)=>s+c.precio,0);
+  const totalServicios=cobros.reduce((s,c)=>s+c.precio,0);
+  const totalPropinas=cobros.reduce((s,c)=>s+(c.propina||0),0);
+  const totalGeneral=cobros.reduce((s,c)=>s+(c.total||c.precio),0);
   el.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:1rem;">
       <span style="font-size:13px;color:var(--mid);">${cobros.length} cobro(s)</span>
-      <span style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:600;color:var(--deep-rose);">Total: $${fmtMoney(total)} MXN</span>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
+        ${totalPropinas>0?`<span style="font-size:12px;color:var(--light-mid);">Propinas: <b style="color:#6aaa5e;">$${fmtMoney(totalPropinas)}</b></span>`:''}
+        <span style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:600;color:var(--deep-rose);">Total: $${fmtMoney(totalGeneral)} MXN</span>
+      </div>
     </div>
     <div class="table-wrap"><table class="historial-table">
-      <thead><tr><th>Fecha</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Precio</th></tr></thead>
-      <tbody>${cobros.map(c=>`<tr><td>${fmtDT(c.fechaCobro)}</td><td><b>${esc(c.nombre)}</b></td><td>${esc(c.telefono||'—')}</td><td>${esc(c.servicio)}</td><td class="price-cell">$${fmtMoney(c.precio)}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>Fecha</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Precio</th><th>Propina</th><th>Total</th></tr></thead>
+      <tbody>${cobros.map(c=>{
+        const propina=c.propina||0;
+        const total=c.total||(c.precio+propina);
+        return`<tr>
+          <td>${fmtDT(c.fechaCobro)}</td>
+          <td><b>${esc(c.nombre)}</b></td>
+          <td>${esc(c.telefono||'—')}</td>
+          <td>${esc(c.servicio)}</td>
+          <td class="price-cell">$${fmtMoney(c.precio)}</td>
+          <td style="color:${propina>0?'#6aaa5e':'var(--light-mid)'};">${propina>0?'$'+fmtMoney(propina):'—'}</td>
+          <td class="price-cell">$${fmtMoney(total)}</td>
+        </tr>`;}).join('')}
+      </tbody>
     </table></div>`;
 }
 
 function exportCSV(){
   if(!cobros.length){ showToast('No hay cobros para exportar'); return; }
   const BOM='\uFEFF';
-  const rows=cobros.map(c=>[fmtDT(c.fechaCobro),c.nombre,c.telefono||'',c.servicio,c.precio].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const rows=cobros.map(c=>{
+    const propina=c.propina||0, total=c.total||(c.precio+propina);
+    return[fmtDT(c.fechaCobro),c.nombre,c.telefono||'',c.servicio,c.precio,propina,total].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+  });
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([BOM+['Fecha de cobro,Nombre del cliente,Teléfono,Servicio,Precio cobrado',...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
+  a.href=URL.createObjectURL(new Blob([BOM+['Fecha de cobro,Nombre del cliente,Teléfono,Servicio,Precio servicio,Propina,Total',...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
   a.download=`cobros_${new Date().toISOString().slice(0,10)}.csv`; a.click();
   showToast('CSV descargado');
 }
