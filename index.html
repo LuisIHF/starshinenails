@@ -804,7 +804,7 @@
 <!-- HEADER -->
 <header class="header">
   <div class="header-brand">
-    <div class="header-logo"><i class="fas fa-spa" style="color:var(--blush);font-size:1.1rem;margin-right:6px;"></i>Belleza <span>& Estilo</span></div>
+    <div class="header-logo"><i class="fas fa-spa" style="color:var(--blush);font-size:1.1rem;margin-right:6px;"></i>Star <span>Shine Nails</span></div>
   </div>
   <div class="header-stats">
     <div class="stat-badge"><i class="fas fa-calendar-check"></i> Pendientes: <span class="num" id="statPendientes">0</span></div>
@@ -913,7 +913,7 @@
         <div class="card-title"><i class="fas fa-store"></i> Datos del Negocio</div>
         <div class="form-group">
           <label class="form-label">Nombre del negocio</label>
-          <input type="text" id="cfg-nombre" class="form-control" placeholder="Belleza & Estilo">
+          <input type="text" id="cfg-nombre" class="form-control" placeholder="Star Shine Nails ">
         </div>
         <div class="form-group">
           <label class="form-label">Dirección</label>
@@ -1068,7 +1068,7 @@ const PRECIOS = {
 // ========== ESTADO ==========
 let citas = [];
 let cobros = [];
-let config = { nombre: 'Belleza & Estilo', direccion: 'Calle Ficticia 123, Colonia Centro, Ciudad', tel: '' };
+let config = { nombre: 'Star Shine Nails', direccion: 'Relampago 100, Col. San Antonio, Matehuala S.L.P', tel: '' };
 let citaActual = null;
 
 // ========== INIT ==========
@@ -1240,7 +1240,7 @@ function mostrarRecibo(cobro) {
 
   document.getElementById('reciboContent').innerHTML = `
     <div class="receipt-header">
-      <div class="receipt-biz-name">${escHtml(cfg.nombre || 'Belleza & Estilo')}</div>
+      <div class="receipt-biz-name">${escHtml(cfg.nombre || 'Star Shine Nails')}</div>
       <div class="receipt-biz-address">${escHtml(cfg.direccion || '')}</div>
       ${cfg.tel ? `<div class="receipt-biz-address">Tel: ${escHtml(cfg.tel)}</div>` : ''}
     </div>
