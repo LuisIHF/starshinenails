@@ -204,6 +204,30 @@
   .tip-btn:hover{border-color:var(--rose);color:var(--rose);background:#fff5f2;}
   .tip-btn.active{background:var(--deep-rose);color:white;border-color:var(--deep-rose);}
   .tip-btn.tip-none.active{background:var(--light-mid);border-color:var(--light-mid);}
+
+  /* LOYALTY */
+  .client-card{background:white;border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow .2s;margin-bottom:10px;}
+  .client-card:hover{box-shadow:var(--shadow);}
+  .client-top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+  .client-name{font-weight:500;font-size:15px;color:var(--dark);}
+  .client-phone{font-size:12px;color:var(--light-mid);margin-top:2px;}
+  .client-actions{display:flex;gap:6px;flex-shrink:0;}
+  .visit-bar-wrap{margin-top:10px;}
+  .visit-bar-label{display:flex;justify-content:space-between;font-size:11px;color:var(--mid);margin-bottom:4px;}
+  .visit-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+  .visit-bar-fill{height:100%;background:linear-gradient(90deg,var(--rose),var(--deep-rose));border-radius:4px;transition:width .5s ease;}
+  .promo-badge{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#fff3cd,#ffe08a);color:#7a5800;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500;margin-top:6px;}
+  .promo-alert{background:linear-gradient(135deg,#fff8e1,#fff3cd);border:1px solid #f0c040;border-radius:10px;padding:10px 14px;font-size:13px;color:#7a5800;display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .visits-count{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:600;color:var(--deep-rose);}
+  .client-search{position:relative;}
+  .client-search input{padding-left:36px;}
+  .client-search .search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--light-mid);font-size:13px;pointer-events:none;}
+  .promo-card{background:white;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+  .promo-visits-badge{background:var(--deep-rose);color:white;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .modal-lg{max-width:560px;}
+  .tab-inner{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.2rem;}
+  .tab-inner-btn{padding:8px 16px;cursor:pointer;font-size:13px;color:var(--light-mid);border-bottom:2px solid transparent;transition:all .2s;}
+  .tab-inner-btn.active{color:var(--deep-rose);border-bottom-color:var(--rose);font-weight:500;}
 </style>
 </head>
 <body>
@@ -266,6 +290,7 @@
 
   <div class="nav-tabs-wrap">
     <div class="nav-tab active" onclick="showTab('citas',this)"><i class="fas fa-calendar-alt"></i> Citas</div>
+    <div class="nav-tab" onclick="showTab('clientes',this)"><i class="fas fa-users"></i> Clientes</div>
     <div class="nav-tab" onclick="showTab('historial',this)"><i class="fas fa-history"></i> Historial</div>
     <div class="nav-tab" onclick="showTab('config',this)"><i class="fas fa-cog"></i> Configuración</div>
   </div>
@@ -301,6 +326,30 @@
           <div class="section-header"><div class="section-title">Citas Pendientes</div></div>
           <div id="listaCitas"><div class="empty-state"><i class="fas fa-calendar-times"></i><p>No hay citas pendientes</p></div></div>
         </div>
+      </div>
+    </div>
+
+    <!-- CLIENTES -->
+    <div class="section" id="sec-clientes">
+      <div class="section-header">
+        <div class="section-title">Clientes &amp; Lealtad</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="openModal('modalPromos')"><i class="fas fa-gift"></i> Promociones</button>
+          <button class="btn btn-primary" onclick="openModal('modalNuevoCliente')"><i class="fas fa-user-plus"></i> Nuevo Cliente</button>
+        </div>
+      </div>
+
+      <!-- Stats strip -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem;" id="clienteStats"></div>
+
+      <!-- Search -->
+      <div class="client-search" style="margin-bottom:1rem;">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="clienteSearch" class="form-control" placeholder="Buscar cliente por nombre o teléfono..." oninput="renderClientes()">
+      </div>
+
+      <div id="listaClientes">
+        <div class="empty-state"><i class="fas fa-users"></i><p>No hay clientes registrados aún</p></div>
       </div>
     </div>
 
@@ -374,6 +423,107 @@
 
   </div>
 </div><!-- /appShell -->
+
+<!-- MODAL NUEVO/EDITAR CLIENTE -->
+<div class="modal-backdrop" id="modalNuevoCliente">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span id="modalClienteTitulo"><i class="fas fa-user-plus" style="margin-right:8px;"></i>Nuevo Cliente</span><button class="modal-close" onclick="closeModal('modalNuevoCliente')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="clienteEditId">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nombre *</label><input type="text" id="cl-nombre" class="form-control" placeholder="Nombre completo"></div>
+        <div class="form-group"><label class="form-label">Teléfono</label><input type="tel" id="cl-tel" class="form-control" placeholder="555-000-1234"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Correo (opcional)</label><input type="email" id="cl-email" class="form-control" placeholder="correo@ejemplo.com"></div>
+        <div class="form-group"><label class="form-label">Cumpleaños (opcional)</label><input type="date" id="cl-birthday" class="form-control"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notas internas</label><textarea id="cl-notas" class="form-control" rows="2" placeholder="Preferencias, alergias, notas..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalNuevoCliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCliente()"><i class="fas fa-save"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE CLIENTE -->
+<div class="modal-backdrop" id="modalDetalleCliente">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span id="detalleClienteNombre"></span><button class="modal-close" onclick="closeModal('modalDetalleCliente')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <div class="tab-inner">
+        <div class="tab-inner-btn active" onclick="switchClienteTab('resumen',this)">Resumen</div>
+        <div class="tab-inner-btn" onclick="switchClienteTab('historial',this)">Historial</div>
+        <div class="tab-inner-btn" onclick="switchClienteTab('promo',this)">Promoción</div>
+      </div>
+      <div id="clienteTabResumen"></div>
+      <div id="clienteTabHistorial" style="display:none;"></div>
+      <div id="clienteTabPromo" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalDetalleCliente')">Cerrar</button>
+      <button class="btn btn-primary" id="btnEditarCliente" onclick="editarClienteActual()"><i class="fas fa-edit"></i> Editar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VISITA MANUAL -->
+<div class="modal-backdrop" id="modalVisita">
+  <div class="modal">
+    <div class="modal-header"><span><i class="fas fa-plus-circle" style="margin-right:8px;"></i>Registrar Visita</span><button class="modal-close" onclick="closeModal('modalVisita')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--mid);margin-bottom:1rem;">Agrega una visita manual al historial del cliente.</p>
+      <div id="visitaClienteInfo" style="background:var(--cream);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:1rem;"></div>
+      <div class="form-group">
+        <label class="form-label">Servicio</label>
+        <select id="visita-servicio" class="form-control">
+          <option value="">— Seleccionar —</option>
+          <option>Pedicura/Manicura</option><option>Uñas acrílicas</option>
+          <option>Corte para mujer</option><option>Faciales</option>
+          <option>Aplicación de pestañas</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Fecha</label><input type="date" id="visita-fecha" class="form-control"></div>
+      <div class="form-group"><label class="form-label">Monto cobrado (MXN)</label><input type="number" id="visita-monto" class="form-control" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label class="form-label">Notas</label><input type="text" id="visita-notas" class="form-control" placeholder="Opcional"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalVisita')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarVisita()"><i class="fas fa-check"></i> Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PROMOCIONES -->
+<div class="modal-backdrop" id="modalPromos">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span><i class="fas fa-gift" style="margin-right:8px;"></i>Gestión de Promociones</span><button class="modal-close" onclick="closeModal('modalPromos')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--light-mid);margin-bottom:1rem;">Define cuántas visitas necesita un cliente para ganar una recompensa.</p>
+      <!-- Add promo form -->
+      <div style="background:var(--cream);border-radius:10px;padding:14px;margin-bottom:1rem;">
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Visitas requeridas</label><input type="number" id="promo-visitas" class="form-control" min="1" placeholder="Ej. 10"></div>
+          <div class="form-group"><label class="form-label">Tipo de recompensa</label>
+            <select id="promo-tipo" class="form-control" onchange="togglePromoTipo()">
+              <option value="descuento">Descuento %</option>
+              <option value="monto">Descuento monto fijo</option>
+              <option value="gratis">Servicio gratuito</option>
+              <option value="custom">Personalizado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="promoValorWrap"><label class="form-label" id="promoValorLabel">Porcentaje de descuento</label><input type="number" id="promo-valor" class="form-control" min="0" placeholder="Ej. 20"></div>
+        <div class="form-group"><label class="form-label">Descripción de la promoción</label><input type="text" id="promo-desc" class="form-control" placeholder="Ej. 20% de descuento en tu próxima visita"></div>
+        <button class="btn btn-primary" onclick="guardarPromo()"><i class="fas fa-plus"></i> Agregar Promoción</button>
+      </div>
+      <!-- Promo list -->
+      <div id="listaPromos"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('modalPromos')">Cerrar</button></div>
+  </div>
+</div>
 
 <!-- MODAL COBRAR -->
 <div class="modal-backdrop" id="modalCobrar">
@@ -449,7 +599,7 @@
 import { initializeApp }          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
                                    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, setDoc, getDoc, deleteDoc, updateDoc, query, orderBy, onSnapshot }
+import { getFirestore, collection, doc, addDoc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, orderBy, onSnapshot }
                                    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -469,7 +619,7 @@ const db    = getFirestore(fbApp);
 window._auth = auth;
 window._db   = db;
 window._fb   = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-                 collection, doc, addDoc, setDoc, getDoc, deleteDoc, updateDoc, query, orderBy, onSnapshot };
+                 collection, doc, addDoc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, orderBy, onSnapshot };
 
 onAuthStateChanged(auth, user => {
   document.getElementById('loadingScreen').style.display = 'none';
@@ -510,6 +660,8 @@ document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('clic
 /* ── state ── */
 let citas=[], cobros=[], config={nombre:'StarShine Nails',direccion:'',tel:''}, gallery=[], citaActual=null;
 let unsubCitas=null, unsubCobros=null;
+let clientes=[], promos=[], clienteActualId=null;
+let unsubClientes=null, unsubPromos=null;
 
 /* ══ AUTH ══ */
 async function doLogin(){
@@ -566,6 +718,18 @@ window.initApp = async function(){
   if(unsubCobros) unsubCobros();
   unsubCobros=onSnapshot(query(collection(db,'users',uid,'cobros'),orderBy('fechaCobro','desc')),snap=>{
     cobros=snap.docs.map(d=>({id:d.id,...d.data()})); renderHistorial(); updateStats();
+  },()=>setSyncing('error'));
+
+  // Clientes listener
+  if(unsubClientes) unsubClientes();
+  unsubClientes=onSnapshot(query(collection(db,'users',uid,'clientes'),orderBy('nombre','asc')),snap=>{
+    clientes=snap.docs.map(d=>({id:d.id,...d.data()})); renderClientes(); renderClienteStats();
+  },()=>setSyncing('error'));
+
+  // Promos listener
+  if(unsubPromos) unsubPromos();
+  unsubPromos=onSnapshot(query(collection(db,'users',uid,'promos'),orderBy('visitas','asc')),snap=>{
+    promos=snap.docs.map(d=>({id:d.id,...d.data()})); renderPromos();
   },()=>setSyncing('error'));
 };
 
@@ -665,6 +829,15 @@ async function confirmarCobro(){
   try{
     await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'cobros'),cobro);
     await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'citas',citaActual.id),{estado:'cobrada'});
+    // Auto-register visit if client exists
+    const match=clientes.find(c=>c.nombre.trim().toLowerCase()===citaActual.nombre.trim().toLowerCase());
+    if(match){
+      const newCount=(match.visitas||0)+1;
+      await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'clientes',match.id,'visitas'),{servicio:citaActual.servicio,fecha:citaActual.fecha||new Date().toISOString().split('T')[0],monto:cobro.precio,notas:'Cobro automático',creadoEn:new Date().toISOString()});
+      await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'clientes',match.id),{visitas:newCount});
+      const promo=getPromoForVisitas(newCount);
+      if(promo) setTimeout(()=>showToast(`🎉 ${esc(match.nombre)} desbloqueó: ${promo.descripcion}`),600);
+    }
     closeModal('modalCobrar'); mostrarRecibo(cobro); showToast('¡Cobro registrado!');
   } catch(e){ showToast('Error al cobrar'); setSyncing('error'); }
 }
@@ -762,6 +935,283 @@ function updateHeaderLogo(){
 }
 
 function updateStats(){ $('statPendientes').textContent=citas.filter(c=>c.estado==='pendiente').length; $('statCobros').textContent=cobros.length; }
+
+/* ══ CLIENTES ══ */
+async function guardarCliente(){
+  const nombre=$('cl-nombre').value.trim();
+  if(!nombre){ showToast('⚠ El nombre es obligatorio'); return; }
+  const uid=window._uid;
+  const editId=$('clienteEditId').value;
+  const data={
+    nombre, telefono:$('cl-tel').value.trim(),
+    email:$('cl-email').value.trim(),
+    birthday:$('cl-birthday').value,
+    notas:$('cl-notas').value.trim(),
+    updatedAt:new Date().toISOString()
+  };
+  setSyncing('syncing');
+  if(editId){
+    await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'clientes',editId),data);
+    showToast('Cliente actualizado ✓');
+  } else {
+    data.createdAt=new Date().toISOString(); data.visitas=0;
+    await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'clientes'),data);
+    showToast('Cliente registrado ✓');
+  }
+  closeModal('modalNuevoCliente');
+}
+window.guardarCliente=guardarCliente;
+
+function abrirNuevoCliente(){
+  $('clienteEditId').value=''; $('cl-nombre').value=''; $('cl-tel').value='';
+  $('cl-email').value=''; $('cl-birthday').value=''; $('cl-notas').value='';
+  $('modalClienteTitulo').innerHTML='<i class="fas fa-user-plus" style="margin-right:8px;"></i>Nuevo Cliente';
+  openModal('modalNuevoCliente');
+}
+window.abrirNuevoCliente=abrirNuevoCliente;
+
+function editarClienteActual(){
+  closeModal('modalDetalleCliente');
+  const c=clientes.find(x=>x.id===clienteActualId); if(!c) return;
+  $('clienteEditId').value=c.id; $('cl-nombre').value=c.nombre||'';
+  $('cl-tel').value=c.telefono||''; $('cl-email').value=c.email||'';
+  $('cl-birthday').value=c.birthday||''; $('cl-notas').value=c.notas||'';
+  $('modalClienteTitulo').innerHTML='<i class="fas fa-edit" style="margin-right:8px;"></i>Editar Cliente';
+  openModal('modalNuevoCliente');
+}
+window.editarClienteActual=editarClienteActual;
+
+async function eliminarCliente(id){
+  if(!confirm('¿Eliminar este cliente y su historial?'))return;
+  const uid=window._uid;
+  // delete visits subcollection entries
+  const {collection,query,getDocs,deleteDoc,doc}=window._fb;
+  const db=window._db;
+  const visSnap=await getDocs(query(collection(db,'users',uid,'clientes',id,'visitas')));
+  for(const d of visSnap.docs) await deleteDoc(doc(db,'users',uid,'clientes',id,'visitas',d.id));
+  await deleteDoc(doc(db,'users',uid,'clientes',id));
+  showToast('Cliente eliminado');
+}
+window.eliminarCliente=eliminarCliente;
+
+function renderClientes(){
+  const el=$('listaClientes'); if(!el)return;
+  const q=($('clienteSearch')?.value||'').toLowerCase();
+  let lista=clientes;
+  if(q) lista=lista.filter(c=>(c.nombre||'').toLowerCase().includes(q)||(c.telefono||'').includes(q));
+  if(!lista.length){
+    el.innerHTML=q?'<div class="empty-state"><i class="fas fa-search"></i><p>Sin resultados</p></div>':'<div class="empty-state"><i class="fas fa-users"></i><p>No hay clientes registrados aún</p></div>';
+    return;
+  }
+  el.innerHTML=lista.map(c=>{
+    const visitas=c.visitas||0;
+    const promo=getPromoForVisitas(visitas);
+    const nextPromo=getNextPromo(visitas);
+    const pct=nextPromo?Math.min(100,Math.round((visitas/nextPromo.visitas)*100)):100;
+    return`<div class="client-card">
+      <div class="client-top">
+        <div>
+          <div class="client-name">${esc(c.nombre)}</div>
+          <div class="client-phone">${c.telefono?'<i class="fas fa-phone fa-xs"></i> '+esc(c.telefono):''}${c.email?' &nbsp;·&nbsp; <i class="fas fa-envelope fa-xs"></i> '+esc(c.email):''}</div>
+          ${promo?`<div class="promo-alert"><i class="fas fa-star"></i> ¡Promoción desbloqueada! <b>${esc(promo.descripcion)}</b></div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div class="visits-count">${visitas}</div>
+          <div style="font-size:11px;color:var(--light-mid);">visita${visitas!==1?'s':''}</div>
+        </div>
+      </div>
+      ${nextPromo&&!promo?`<div class="visit-bar-wrap">
+        <div class="visit-bar-label"><span>Progreso hacia promoción</span><span>${visitas}/${nextPromo.visitas}</span></div>
+        <div class="visit-bar"><div class="visit-bar-fill" style="width:${pct}%"></div></div>
+        <div class="promo-badge"><i class="fas fa-gift"></i>${esc(nextPromo.descripcion)}</div>
+      </div>`:''}
+      <div class="client-actions" style="margin-top:10px;">
+        <button class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="abrirDetalle('${c.id}')"><i class="fas fa-eye"></i> Ver</button>
+        <button class="btn btn-cobrar" style="font-size:12px;padding:6px 12px;" onclick="abrirVisita('${c.id}')"><i class="fas fa-plus"></i> Visita</button>
+        <button class="btn btn-danger" onclick="eliminarCliente('${c.id}')"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.renderClientes=renderClientes;
+
+function renderClienteStats(){
+  const el=$('clienteStats'); if(!el)return;
+  const total=clientes.length;
+  const conPromo=clientes.filter(c=>getPromoForVisitas(c.visitas||0)).length;
+  const totalVisitas=clientes.reduce((s,c)=>s+(c.visitas||0),0);
+  el.innerHTML=[
+    {icon:'fas fa-users',label:'Clientes',val:total,color:'var(--deep-rose)'},
+    {icon:'fas fa-walking',label:'Visitas totales',val:totalVisitas,color:'var(--rose)'},
+    {icon:'fas fa-gift',label:'Con promoción',val:conPromo,color:'var(--gold)'},
+  ].map(s=>`<div class="card" style="text-align:center;padding:1rem;">
+    <i class="${s.icon}" style="color:${s.color};font-size:1.4rem;margin-bottom:.4rem;display:block;"></i>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:600;color:${s.color};">${s.val}</div>
+    <div style="font-size:12px;color:var(--light-mid);">${s.label}</div>
+  </div>`).join('');
+}
+
+/* ── Visita manual ── */
+let visitaClienteId=null;
+function abrirVisita(id){
+  visitaClienteId=id;
+  const c=clientes.find(x=>x.id===id); if(!c)return;
+  $('visitaClienteInfo').innerHTML=`<b>${esc(c.nombre)}</b>${c.telefono?' · '+esc(c.telefono):''}`;
+  $('visita-servicio').value=''; $('visita-notas').value=''; $('visita-monto').value='';
+  $('visita-fecha').value=new Date().toISOString().split('T')[0];
+  openModal('modalVisita');
+}
+window.abrirVisita=abrirVisita;
+
+async function guardarVisita(){
+  const uid=window._uid;
+  const c=clientes.find(x=>x.id===visitaClienteId); if(!c)return;
+  const servicio=$('visita-servicio').value;
+  if(!servicio){showToast('⚠ Selecciona un servicio');return;}
+  const visita={servicio,fecha:$('visita-fecha').value,monto:parseFloat($('visita-monto').value)||0,notas:$('visita-notas').value.trim(),creadoEn:new Date().toISOString()};
+  setSyncing('syncing');
+  const newCount=(c.visitas||0)+1;
+  await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'clientes',visitaClienteId,'visitas'),visita);
+  await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'clientes',visitaClienteId),{visitas:newCount});
+  closeModal('modalVisita');
+  // Check promo unlock
+  const promo=getPromoForVisitas(newCount);
+  if(promo) setTimeout(()=>showToast(`🎉 ${esc(c.nombre)} desbloqueó: ${promo.descripcion}`),400);
+  else showToast('Visita registrada ✓');
+}
+window.guardarVisita=guardarVisita;
+
+/* ── Detalle cliente ── */
+let visitasDetalleCache=[];
+async function abrirDetalle(id){
+  clienteActualId=id;
+  const c=clientes.find(x=>x.id===id); if(!c)return;
+  $('detalleClienteNombre').innerHTML=`<i class="fas fa-user" style="margin-right:8px;"></i>${esc(c.nombre)}`;
+  // Load visits
+  const {collection,query,orderBy,getDocs}=window._fb;
+  const snap=await getDocs(query(collection(window._db,'users',window._uid,'clientes',id,'visitas'),orderBy('fecha','desc')));
+  visitasDetalleCache=snap.docs.map(d=>({id:d.id,...d.data()}));
+  switchClienteTab('resumen',null,c);
+  openModal('modalDetalleCliente');
+}
+window.abrirDetalle=abrirDetalle;
+
+function switchClienteTab(tab,el,cOverride){
+  document.querySelectorAll('.tab-inner-btn').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  else { const btns=document.querySelectorAll('.tab-inner-btn'); if(tab==='resumen')btns[0]?.classList.add('active'); else if(tab==='historial')btns[1]?.classList.add('active'); else btns[2]?.classList.add('active'); }
+  $('clienteTabResumen').style.display=tab==='resumen'?'':'none';
+  $('clienteTabHistorial').style.display=tab==='historial'?'':'none';
+  $('clienteTabPromo').style.display=tab==='promo'?'':'none';
+  const c=cOverride||clientes.find(x=>x.id===clienteActualId); if(!c)return;
+  if(tab==='resumen') renderDetalleResumen(c);
+  if(tab==='historial') renderDetalleHistorial();
+  if(tab==='promo') renderDetallePromo(c);
+}
+window.switchClienteTab=switchClienteTab;
+
+function renderDetalleResumen(c){
+  const visitas=c.visitas||0;
+  const promo=getPromoForVisitas(visitas);
+  const nextPromo=getNextPromo(visitas);
+  const pct=nextPromo?Math.min(100,Math.round((visitas/nextPromo.visitas)*100)):100;
+  $('clienteTabResumen').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center;">
+        <div class="visits-count">${visitas}</div>
+        <div style="font-size:12px;color:var(--light-mid);">visitas totales</div>
+      </div>
+      <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:600;color:var(--gold);">$${fmtMoney(visitasDetalleCache.reduce((s,v)=>s+(v.monto||0),0))}</div>
+        <div style="font-size:12px;color:var(--light-mid);">gasto total MXN</div>
+      </div>
+    </div>
+    ${c.telefono?`<div style="font-size:13px;margin-bottom:6px;"><i class="fas fa-phone fa-xs" style="color:var(--light-mid);margin-right:6px;"></i>${esc(c.telefono)}</div>`:''}
+    ${c.email?`<div style="font-size:13px;margin-bottom:6px;"><i class="fas fa-envelope fa-xs" style="color:var(--light-mid);margin-right:6px;"></i>${esc(c.email)}</div>`:''}
+    ${c.birthday?`<div style="font-size:13px;margin-bottom:6px;"><i class="fas fa-birthday-cake fa-xs" style="color:var(--light-mid);margin-right:6px;"></i>${fmtDate(c.birthday)}</div>`:''}
+    ${c.notas?`<div style="font-size:13px;background:var(--cream);border-radius:8px;padding:10px;margin-top:8px;"><i class="fas fa-sticky-note fa-xs" style="color:var(--light-mid);margin-right:6px;"></i>${esc(c.notas)}</div>`:''}
+    ${promo?`<div class="promo-alert" style="margin-top:1rem;"><i class="fas fa-star"></i><div><b>¡Promoción desbloqueada!</b><br>${esc(promo.descripcion)}</div></div>`:''}
+    ${nextPromo&&!promo?`<div class="visit-bar-wrap" style="margin-top:1rem;"><div class="visit-bar-label"><span>Progreso hacia próxima promo</span><span>${visitas}/${nextPromo.visitas}</span></div><div class="visit-bar"><div class="visit-bar-fill" style="width:${pct}%"></div></div><div class="promo-badge" style="margin-top:6px;"><i class="fas fa-gift"></i>${esc(nextPromo.descripcion)}</div></div>`:''}
+  `;
+}
+
+function renderDetalleHistorial(){
+  if(!visitasDetalleCache.length){ $('clienteTabHistorial').innerHTML='<div class="empty-state"><i class="fas fa-calendar-times"></i><p>Sin visitas registradas</p></div>'; return; }
+  $('clienteTabHistorial').innerHTML=`<div class="table-wrap"><table class="historial-table">
+    <thead><tr><th>Fecha</th><th>Servicio</th><th>Monto</th><th>Notas</th></tr></thead>
+    <tbody>${visitasDetalleCache.map(v=>`<tr><td>${fmtDate(v.fecha)}</td><td>${esc(v.servicio)}</td><td class="price-cell">$${fmtMoney(v.monto)}</td><td style="font-size:12px;color:var(--light-mid);">${esc(v.notas||'—')}</td></tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderDetallePromo(c){
+  const visitas=c.visitas||0;
+  const desbloqueadas=promos.filter(p=>visitas>=p.visitas);
+  const proximas=promos.filter(p=>visitas<p.visitas);
+  let html='';
+  if(desbloqueadas.length){
+    html+=`<div style="margin-bottom:1rem;"><div class="form-label" style="margin-bottom:8px;color:#6aaa5e;"><i class="fas fa-check-circle"></i> Desbloqueadas</div>`;
+    html+=desbloqueadas.map(p=>`<div class="promo-card"><div><div style="font-weight:500;">${esc(p.descripcion)}</div><div style="font-size:11px;color:var(--light-mid);">Requiere ${p.visitas} visitas</div></div><span class="promo-visits-badge" style="background:#6aaa5e;">${p.visitas} ✓</span></div>`).join('');
+    html+='</div>';
+  }
+  if(proximas.length){
+    html+=`<div><div class="form-label" style="margin-bottom:8px;"><i class="fas fa-lock"></i> Próximas</div>`;
+    html+=proximas.map(p=>`<div class="promo-card"><div><div style="font-weight:500;">${esc(p.descripcion)}</div><div style="font-size:11px;color:var(--light-mid);">Faltan ${p.visitas-visitas} visita(s)</div></div><span class="promo-visits-badge">${p.visitas}</span></div>`).join('');
+    html+='</div>';
+  }
+  if(!html) html='<div class="empty-state"><i class="fas fa-gift"></i><p>No hay promociones configuradas.<br>Agrégalas en "Gestión de Promociones".</p></div>';
+  $('clienteTabPromo').innerHTML=html;
+}
+
+/* ── Promo helpers ── */
+function getPromoForVisitas(v){ return promos.filter(p=>v>=p.visitas).sort((a,b)=>b.visitas-a.visitas)[0]||null; }
+function getNextPromo(v){ return promos.filter(p=>v<p.visitas).sort((a,b)=>a.visitas-b.visitas)[0]||null; }
+
+/* ── Gestión de promos ── */
+function togglePromoTipo(){
+  const tipo=$('promo-tipo').value;
+  const wrap=$('promoValorWrap'); const lbl=$('promoValorLabel');
+  if(tipo==='gratis'||tipo==='custom'){ wrap.style.display='none'; }
+  else{ wrap.style.display=''; lbl.textContent=tipo==='descuento'?'Porcentaje de descuento':'Monto fijo de descuento (MXN)'; }
+}
+window.togglePromoTipo=togglePromoTipo;
+
+async function guardarPromo(){
+  const visitas=parseInt($('promo-visitas').value)||0;
+  const tipo=$('promo-tipo').value;
+  const valor=parseFloat($('promo-valor').value)||0;
+  const desc=$('promo-desc').value.trim();
+  if(!visitas||visitas<1){showToast('⚠ Ingresa las visitas requeridas');return;}
+  if(!desc){showToast('⚠ Agrega una descripción');return;}
+  const promo={visitas,tipo,valor,descripcion:desc,creadoEn:new Date().toISOString()};
+  setSyncing('syncing');
+  await window._fb.addDoc(window._fb.collection(window._db,'users',window._uid,'promos'),promo);
+  $('promo-visitas').value=''; $('promo-valor').value=''; $('promo-desc').value='';
+  showToast('Promoción guardada ✓');
+}
+window.guardarPromo=guardarPromo;
+
+async function eliminarPromo(id){
+  if(!confirm('¿Eliminar esta promoción?'))return;
+  await window._fb.deleteDoc(window._fb.doc(window._db,'users',window._uid,'promos',id));
+  showToast('Promoción eliminada');
+}
+window.eliminarPromo=eliminarPromo;
+
+function renderPromos(){
+  const el=$('listaPromos'); if(!el)return;
+  if(!promos.length){el.innerHTML='<div style="text-align:center;padding:1.5rem;color:var(--light-mid);font-size:13px;">No hay promociones configuradas.</div>';return;}
+  el.innerHTML=promos.map(p=>`
+    <div class="promo-card">
+      <div>
+        <div style="font-weight:500;font-size:14px;">${esc(p.descripcion)}</div>
+        <div style="font-size:11px;color:var(--light-mid);margin-top:2px;">${p.tipo==='descuento'?p.valor+'% desc.':p.tipo==='monto'?'$'+fmtMoney(p.valor)+' desc.':p.tipo==='gratis'?'Servicio gratuito':'Personalizado'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="promo-visits-badge">${p.visitas} visitas</span>
+        <button class="btn btn-danger" style="padding:5px 10px;" onclick="eliminarPromo('${p.id}')"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
 
 /* ══ GALLERY ══ */
 async function saveGallery(){
