@@ -205,6 +205,14 @@
   .tip-btn.active{background:var(--deep-rose);color:white;border-color:var(--deep-rose);}
   .tip-btn.tip-none.active{background:var(--light-mid);border-color:var(--light-mid);}
 
+  /* SERVICIOS LIST */
+  .servicio-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;}
+  .servicio-item:hover{box-shadow:var(--shadow);}
+  .servicio-nombre{font-weight:500;font-size:13px;color:var(--dark);}
+  .servicio-precio-edit{width:90px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--dark);outline:none;text-align:right;}
+  .servicio-precio-edit:focus{border-color:var(--rose);}
+  .servicio-default-badge{font-size:10px;color:var(--light-mid);background:var(--cream);padding:2px 7px;border-radius:10px;border:1px solid var(--border);}
+
   /* LOYALTY */
   .client-card{background:white;border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow .2s;margin-bottom:10px;}
   .client-card:hover{box-shadow:var(--shadow);}
@@ -312,11 +320,6 @@
             <label class="form-label">Servicio</label>
             <select id="f-servicio" class="form-control" onchange="autoFillPrecio()">
               <option value="">— Seleccionar —</option>
-              <option>Pedicura/Manicura</option>
-              <option>Uñas acrílicas</option>
-              <option>Corte para mujer</option>
-              <option>Faciales</option>
-              <option>Aplicación de pestañas</option>
             </select>
           </div>
           <div class="form-group"><label class="form-label">Precio (MXN)</label><input type="number" id="f-precio" class="form-control" placeholder="0.00" min="0" step="0.01"></div>
@@ -386,6 +389,33 @@
           </div>
           <div class="gallery-grid" id="galleryGrid"></div>
         </div>
+      </div>
+
+      <!-- Servicios -->
+      <div class="card" style="margin-top:1.5rem;">
+        <div class="card-title"><i class="fas fa-scissors"></i> Servicios &amp; Precios</div>
+        <p style="font-size:12px;color:var(--light-mid);margin-bottom:1rem;">Administra el catálogo de servicios. Los cambios se reflejan en todos los formularios de la app.</p>
+
+        <!-- Add new service -->
+        <div style="background:var(--cream);border-radius:10px;padding:14px;margin-bottom:1rem;">
+          <div class="form-label" style="margin-bottom:8px;">Agregar nuevo servicio</div>
+          <div class="form-row" style="align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label">Nombre del servicio</label>
+              <input type="text" id="srv-nombre" class="form-control" placeholder="Ej. Cejas con hilo">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label">Precio sugerido (MXN)</label>
+              <input type="number" id="srv-precio" class="form-control" placeholder="0.00" min="0" step="0.01">
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:.75rem;" onclick="agregarServicio()">
+            <i class="fas fa-plus"></i> Agregar servicio
+          </button>
+        </div>
+
+        <!-- Services list -->
+        <div id="serviciosList"></div>
       </div>
 
       <!-- Fondo -->
@@ -479,9 +509,6 @@
         <label class="form-label">Servicio</label>
         <select id="visita-servicio" class="form-control">
           <option value="">— Seleccionar —</option>
-          <option>Pedicura/Manicura</option><option>Uñas acrílicas</option>
-          <option>Corte para mujer</option><option>Faciales</option>
-          <option>Aplicación de pestañas</option><option>Otro</option>
         </select>
       </div>
       <div class="form-group"><label class="form-label">Fecha</label><input type="date" id="visita-fecha" class="form-control"></div>
@@ -641,14 +668,47 @@ onAuthStateChanged(auth, user => {
 <!-- ═══════════════ APP LOGIC ═══════════════ -->
 <script>
 /* ── helpers ── */
-const PRECIOS = {'Pedicura/Manicura':250,'Uñas acrílicas':400,'Corte para mujer':300,'Faciales':500,'Aplicación de pestañas':600};
+const PRECIOS_DEFAULT = {
+  'Uñas acrílicas':400,
+  'Aplicación de pestañas':600,
+  'Facial - SPA':500,
+  'Corte - Mujer':300,
+  'Manicura':200,
+  'Pedicura':220,
+  'Tinte de cabello':450,
+  'Permanente':550
+};
+// Merge with any user-saved custom services from localStorage
+function getServicios(){ try{ return JSON.parse(localStorage.getItem('servicios')||'null')||{...PRECIOS_DEFAULT}; }catch{ return{...PRECIOS_DEFAULT}; } }
+function saveServicios(obj){ localStorage.setItem('servicios',JSON.stringify(obj)); }
+let PRECIOS = getServicios();
 const $  = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmtMoney = n => parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtDate  = d => { if(!d)return'—'; const[y,m,day]=d.split('-'); return`${day}/${m}/${y}`; };
 const fmtDT    = iso => { if(!iso)return'—'; const d=new Date(iso); return d.toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); };
 
-function showToast(msg){ $('toastMsg').textContent=msg; $('toast').classList.add('show'); setTimeout(()=>$('toast').classList.remove('show'),2800); }
+function buildServicioOptions(selectId, includeOtro=false){
+  const sel=$(selectId); if(!sel)return;
+  const current=sel.value;
+  sel.innerHTML='<option value="">— Seleccionar —</option>';
+  Object.keys(PRECIOS).forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s; opt.textContent=s;
+    sel.appendChild(opt);
+  });
+  if(includeOtro){
+    const opt=document.createElement('option'); opt.value='Otro'; opt.textContent='Otro'; sel.appendChild(opt);
+  }
+  if(current) sel.value=current;
+}
+
+function refreshAllServicioSelects(){
+  PRECIOS=getServicios();
+  buildServicioOptions('f-servicio');
+  buildServicioOptions('visita-servicio',true);
+  renderServiciosList();
+}
 function openModal(id){ $(id).classList.add('open'); }
 function closeModal(id){ $(id).classList.remove('open'); }
 window.closeModal = closeModal; window.openModal = openModal;
@@ -698,7 +758,8 @@ window.initApp = async function(){
   // Defaults
   const today=new Date().toISOString().split('T')[0]; $('f-fecha').value=today;
   const now=new Date(); $('f-hora').value=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
+  buildServicioOptions('f-servicio');
+  buildServicioOptions('visita-servicio',true);
   // Config
   const cfgSnap=await getDoc(doc(db,'users',uid,'settings','config'));
   if(cfgSnap.exists()){ config=cfgSnap.data(); $('cfg-nombre').value=config.nombre||''; $('cfg-direccion').value=config.direccion||''; $('cfg-tel').value=config.tel||''; updateHeaderLogo(); }
@@ -738,6 +799,7 @@ function showTab(tab,el){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   $('sec-'+tab).classList.add('active'); el.classList.add('active');
+  if(tab==='config') renderServiciosList();
 }
 window.showTab=showTab;
 
@@ -1212,6 +1274,59 @@ function renderPromos(){
       </div>
     </div>`).join('');
 }
+
+/* ══ SERVICIOS ══ */
+function agregarServicio(){
+  const nombre=$('srv-nombre').value.trim();
+  const precio=parseFloat($('srv-precio').value)||0;
+  if(!nombre){ showToast('⚠ Escribe el nombre del servicio'); return; }
+  if(PRECIOS[nombre]!==undefined){ showToast('⚠ Ese servicio ya existe'); return; }
+  PRECIOS[nombre]=precio;
+  saveServicios(PRECIOS);
+  refreshAllServicioSelects();
+  $('srv-nombre').value=''; $('srv-precio').value='';
+  showToast(`Servicio "${nombre}" agregado ✓`);
+}
+window.agregarServicio=agregarServicio;
+
+function actualizarPrecioServicio(nombre, val){
+  PRECIOS[nombre]=parseFloat(val)||0;
+  saveServicios(PRECIOS);
+}
+window.actualizarPrecioServicio=actualizarPrecioServicio;
+
+function eliminarServicio(nombre){
+  if(!confirm(`¿Eliminar el servicio "${nombre}"?`))return;
+  delete PRECIOS[nombre];
+  saveServicios(PRECIOS);
+  refreshAllServicioSelects();
+  showToast('Servicio eliminado');
+}
+window.eliminarServicio=eliminarServicio;
+
+function renderServiciosList(){
+  const el=$('serviciosList'); if(!el)return;
+  const servicios=Object.keys(PRECIOS);
+  if(!servicios.length){ el.innerHTML='<p style="font-size:13px;color:var(--light-mid);text-align:center;padding:1rem;">No hay servicios configurados.</p>'; return; }
+  const isDefault=n=>PRECIOS_DEFAULT[n]!==undefined;
+  el.innerHTML=servicios.map(s=>`
+    <div class="servicio-item">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="servicio-nombre">${esc(s)}</span>
+          ${isDefault(s)?'<span class="servicio-default-badge">predeterminado</span>':'<span class="servicio-default-badge" style="color:var(--rose);border-color:var(--rose);">personalizado</span>'}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <span style="font-size:12px;color:var(--light-mid);">$</span>
+        <input type="number" class="servicio-precio-edit" value="${PRECIOS[s]}" min="0" step="0.01"
+          onchange="actualizarPrecioServicio('${esc(s)}',this.value)"
+          title="Precio sugerido">
+        <button class="btn btn-danger" style="padding:5px 9px;" onclick="eliminarServicio('${esc(s)}')" title="Eliminar"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
+window.renderServiciosList=renderServiciosList;
 
 /* ══ GALLERY ══ */
 async function saveGallery(){
