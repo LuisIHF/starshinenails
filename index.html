@@ -213,6 +213,20 @@
   .servicio-precio-edit:focus{border-color:var(--rose);}
   .servicio-default-badge{font-size:10px;color:var(--light-mid);background:var(--cream);padding:2px 7px;border-radius:10px;border:1px solid var(--border);}
 
+  /* WHATSAPP BTN */
+  .btn-whatsapp{background:#25d366;color:white;}
+  .btn-whatsapp:hover{background:#1da851;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,211,102,0.35);}
+
+  /* TICKET CARDS */
+  .ticket-card{background:white;border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:10px;transition:box-shadow .2s;}
+  .ticket-card:hover{box-shadow:var(--shadow);}
+  .ticket-card-info{flex:1;min-width:0;}
+  .ticket-card-name{font-weight:500;font-size:14px;color:var(--dark);}
+  .ticket-card-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:3px;}
+  .ticket-card-price{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;color:var(--deep-rose);white-space:nowrap;}
+  .ticket-card-actions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+  .ticket-num{font-size:10px;background:var(--cream);border:1px solid var(--border);color:var(--light-mid);padding:2px 8px;border-radius:10px;white-space:nowrap;}
+
   /* LOYALTY */
   .client-card{background:white;border:1px solid var(--border);border-radius:12px;padding:16px;transition:box-shadow .2s;margin-bottom:10px;}
   .client-card:hover{box-shadow:var(--shadow);}
@@ -299,6 +313,7 @@
   <div class="nav-tabs-wrap">
     <div class="nav-tab active" onclick="showTab('citas',this)"><i class="fas fa-calendar-alt"></i> Citas</div>
     <div class="nav-tab" onclick="showTab('clientes',this)"><i class="fas fa-users"></i> Clientes</div>
+    <div class="nav-tab" onclick="showTab('tickets',this)"><i class="fas fa-receipt"></i> Tickets</div>
     <div class="nav-tab" onclick="showTab('historial',this)"><i class="fas fa-history"></i> Historial</div>
     <div class="nav-tab" onclick="showTab('config',this)"><i class="fas fa-cog"></i> Configuración</div>
   </div>
@@ -353,6 +368,26 @@
 
       <div id="listaClientes">
         <div class="empty-state"><i class="fas fa-users"></i><p>No hay clientes registrados aún</p></div>
+      </div>
+    </div>
+
+    <!-- TICKETS -->
+    <div class="section" id="sec-tickets">
+      <div class="section-header">
+        <div class="section-title">Tickets Guardados</div>
+        <div style="font-size:12px;color:var(--light-mid);display:flex;align-items:center;gap:6px;">
+          <i class="fas fa-cloud" style="color:var(--rose);"></i> Guardados en la nube por usuario
+        </div>
+      </div>
+
+      <!-- Search tickets -->
+      <div class="client-search" style="margin-bottom:1rem;">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" id="ticketSearch" class="form-control" placeholder="Buscar por cliente, servicio o fecha..." oninput="renderTickets()">
+      </div>
+
+      <div id="listaTickets">
+        <div class="empty-state"><i class="fas fa-receipt"></i><p>No hay tickets guardados aún</p></div>
       </div>
     </div>
 
@@ -585,11 +620,21 @@
 <!-- MODAL RECIBO -->
 <div class="modal-backdrop" id="modalRecibo">
   <div class="modal receipt-modal">
-    <div class="modal-header"><span><i class="fas fa-receipt" style="margin-right:8px;"></i>Recibo</span><button class="modal-close" onclick="closeModal('modalRecibo')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-header">
+      <span><i class="fas fa-receipt" style="margin-right:8px;"></i>Ticket de Cobro</span>
+      <button class="modal-close" onclick="closeModal('modalRecibo')"><i class="fas fa-times"></i></button>
+    </div>
     <div class="modal-body" id="printArea"><div class="receipt" id="reciboContent"></div></div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="window.print()"><i class="fas fa-print"></i> Imprimir</button>
-      <button class="btn btn-primary" onclick="closeModal('modalRecibo')"><i class="fas fa-check"></i> Listo</button>
+    <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn btn-outline" onclick="window.print()" style="flex:1;min-width:100px;justify-content:center;">
+        <i class="fas fa-print"></i> Imprimir
+      </button>
+      <button class="btn btn-whatsapp" id="btnWhatsapp" onclick="compartirWhatsapp()" style="flex:1;min-width:100px;justify-content:center;">
+        <i class="fab fa-whatsapp"></i> WhatsApp
+      </button>
+      <button class="btn btn-primary" onclick="closeModal('modalRecibo')" style="flex:1;min-width:100px;justify-content:center;">
+        <i class="fas fa-check"></i> Listo
+      </button>
     </div>
   </div>
 </div>
@@ -778,7 +823,7 @@ window.initApp = async function(){
 
   if(unsubCobros) unsubCobros();
   unsubCobros=onSnapshot(query(collection(db,'users',uid,'cobros'),orderBy('fechaCobro','desc')),snap=>{
-    cobros=snap.docs.map(d=>({id:d.id,...d.data()})); renderHistorial(); updateStats();
+    cobros=snap.docs.map(d=>({id:d.id,...d.data()})); renderHistorial(); renderTickets(); updateStats();
   },()=>setSyncing('error'));
 
   // Clientes listener
@@ -800,6 +845,7 @@ function showTab(tab,el){
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   $('sec-'+tab).classList.add('active'); el.classList.add('active');
   if(tab==='config') renderServiciosList();
+  if(tab==='tickets') renderTickets();
 }
 window.showTab=showTab;
 
@@ -905,12 +951,16 @@ async function confirmarCobro(){
 }
 window.confirmarCobro=confirmarCobro;
 
-function mostrarRecibo(cobro){
+let reciboActual=null; // stores current ticket data for WhatsApp share
+
+function buildReciboHTML(cobro){
   const fecha=new Date(cobro.fechaCobro);
   const propina=cobro.propina||0;
   const total=cobro.total||(cobro.precio+propina);
-  $('reciboContent').innerHTML=`
+  const num=cobro.ticketNum?`<div style="font-size:11px;color:var(--light-mid);margin-bottom:4px;">Ticket #${cobro.ticketNum}</div>`:'';
+  return `
     <div class="receipt-header">
+      ${num}
       <div class="receipt-biz-name">${esc(config.nombre||'StarShine Nails')}</div>
       <div class="receipt-biz-address">${esc(config.direccion||'')}</div>
       ${config.tel?`<div class="receipt-biz-address">Tel: ${esc(config.tel)}</div>`:''}
@@ -930,8 +980,64 @@ function mostrarRecibo(cobro){
     ${propina>0?`<div style="text-align:center;font-size:11px;color:var(--light-mid);margin-top:4px;">Incluye $${fmtMoney(propina)} MXN de propina 💝</div>`:''}
     <hr class="receipt-divider">
     <div class="receipt-thanks">¡Gracias por tu preferencia!<br>Vuelve pronto. 💖</div>`;
+}
+
+function buildWhatsappText(cobro){
+  const fecha=new Date(cobro.fechaCobro);
+  const propina=cobro.propina||0;
+  const total=cobro.total||(cobro.precio+propina);
+  const num=cobro.ticketNum?`Ticket #${cobro.ticketNum}\n`:'';
+  let txt=`✨ *${config.nombre||'StarShine Nails'}* ✨\n`;
+  if(config.direccion) txt+=`📍 ${config.direccion}\n`;
+  if(config.tel) txt+=`📞 ${config.tel}\n`;
+  txt+=`\n`;
+  txt+=`${num}`;
+  txt+=`📅 ${fecha.toLocaleDateString('es-MX',{weekday:'short',year:'numeric',month:'short',day:'numeric'})} · ${fecha.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}\n\n`;
+  txt+=`👤 Cliente: *${cobro.nombre}*\n`;
+  txt+=`💅 Servicio: ${cobro.servicio}\n\n`;
+  txt+=`💵 Servicio: $${fmtMoney(cobro.precio)} MXN\n`;
+  if(propina>0) txt+=`🙏 Propina: $${fmtMoney(propina)} MXN\n`;
+  txt+=`\n*TOTAL: $${fmtMoney(total)} MXN*\n\n`;
+  txt+=`¡Gracias por tu preferencia! Vuelve pronto 💖`;
+  return txt;
+}
+
+async function mostrarRecibo(cobro){
+  // Assign ticket number and save to Firestore
+  const uid=window._uid;
+  let savedCobro=cobro;
+  try{
+    // Get next ticket number
+    const {getDoc,doc,setDoc,updateDoc}=window._fb;
+    const db=window._db;
+    const counterRef=doc(db,'users',uid,'settings','ticketCounter');
+    const counterSnap=await getDoc(counterRef);
+    let nextNum=(counterSnap.exists()?counterSnap.data().count:0)+1;
+    await setDoc(counterRef,{count:nextNum});
+    savedCobro={...cobro,ticketNum:nextNum,ticketHTML:buildReciboHTML({...cobro,ticketNum:nextNum}),whatsappText:buildWhatsappText({...cobro,ticketNum:nextNum})};
+    // Save ticket linked to cobro
+    if(cobro.id){
+      await updateDoc(doc(db,'users',uid,'cobros',cobro.id),{ticketNum:nextNum,whatsappText:savedCobro.whatsappText});
+    }
+  }catch(e){ /* silent */ }
+
+  reciboActual=savedCobro;
+  $('reciboContent').innerHTML=buildReciboHTML(savedCobro);
+  // Update whatsapp button with phone if available
+  const phone=(cobro.telefono||'').replace(/\D/g,'');
+  $('btnWhatsapp').dataset.phone=phone;
   openModal('modalRecibo');
 }
+
+function compartirWhatsapp(){
+  if(!reciboActual)return;
+  const txt=reciboActual.whatsappText||buildWhatsappText(reciboActual);
+  const phone=($('btnWhatsapp').dataset.phone||'').replace(/\D/g,'');
+  const encoded=encodeURIComponent(txt);
+  const url=phone?`https://wa.me/52${phone}?text=${encoded}`:`https://wa.me/?text=${encoded}`;
+  window.open(url,'_blank');
+}
+window.compartirWhatsapp=compartirWhatsapp;
 
 /* ══ HISTORIAL ══ */
 function renderHistorial(){
@@ -1274,6 +1380,69 @@ function renderPromos(){
       </div>
     </div>`).join('');
 }
+
+/* ══ TICKETS ══ */
+function renderTickets(){
+  const el=$('listaTickets'); if(!el)return;
+  const q=($('ticketSearch')?.value||'').toLowerCase();
+  let lista=[...cobros].sort((a,b)=>new Date(b.fechaCobro)-new Date(a.fechaCobro));
+  if(q) lista=lista.filter(c=>
+    (c.nombre||'').toLowerCase().includes(q)||
+    (c.servicio||'').toLowerCase().includes(q)||
+    fmtDT(c.fechaCobro).includes(q)||
+    (c.ticketNum?String(c.ticketNum).includes(q):false)
+  );
+  if(!lista.length){
+    el.innerHTML=q?'<div class="empty-state"><i class="fas fa-search"></i><p>Sin resultados</p></div>':'<div class="empty-state"><i class="fas fa-receipt"></i><p>No hay tickets guardados aún</p></div>';
+    return;
+  }
+  el.innerHTML=lista.map(c=>{
+    const propina=c.propina||0;
+    const total=c.total||(c.precio+propina);
+    return`<div class="ticket-card">
+      <div class="ticket-card-info">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="ticket-card-name">${esc(c.nombre)}</span>
+          ${c.ticketNum?`<span class="ticket-num">#${c.ticketNum}</span>`:''}
+        </div>
+        <div class="ticket-card-meta">
+          <span class="meta-pill"><i class="fas fa-calendar"></i>${fmtDT(c.fechaCobro)}</span>
+          <span class="meta-pill"><i class="fas fa-scissors"></i>${esc(c.servicio)}</span>
+          ${c.telefono?`<span class="meta-pill"><i class="fas fa-phone"></i>${esc(c.telefono)}</span>`:''}
+          ${propina>0?`<span class="meta-pill" style="color:#6aaa5e;"><i class="fas fa-heart"></i>+$${fmtMoney(propina)} propina</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+        <div class="ticket-card-price">$${fmtMoney(total)}</div>
+        <div class="ticket-card-actions">
+          <button class="btn btn-outline" style="font-size:11px;padding:5px 10px;" onclick="reimprimirTicket('${c.id}')" title="Reimprimir"><i class="fas fa-print"></i> Reimprimir</button>
+          <button class="btn btn-whatsapp" style="font-size:11px;padding:5px 10px;" onclick="whatsappTicket('${c.id}')" title="Compartir por WhatsApp"><i class="fab fa-whatsapp"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.renderTickets=renderTickets;
+
+function reimprimirTicket(id){
+  const cobro=cobros.find(c=>c.id===id); if(!cobro)return;
+  reciboActual=cobro;
+  $('reciboContent').innerHTML=buildReciboHTML(cobro);
+  const phone=(cobro.telefono||'').replace(/\D/g,'');
+  $('btnWhatsapp').dataset.phone=phone;
+  openModal('modalRecibo');
+}
+window.reimprimirTicket=reimprimirTicket;
+
+function whatsappTicket(id){
+  const cobro=cobros.find(c=>c.id===id); if(!cobro)return;
+  const txt=cobro.whatsappText||buildWhatsappText(cobro);
+  const phone=(cobro.telefono||'').replace(/\D/g,'');
+  const encoded=encodeURIComponent(txt);
+  const url=phone?`https://wa.me/52${phone}?text=${encoded}`:`https://wa.me/?text=${encoded}`;
+  window.open(url,'_blank');
+}
+window.whatsappTicket=whatsappTicket;
 
 /* ══ SERVICIOS ══ */
 function agregarServicio(){
