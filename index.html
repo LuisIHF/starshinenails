@@ -260,6 +260,20 @@
 
   /* TICKET CARDS */
   .ticket-card{background:white;border:1px solid var(--border);border-left:3px solid var(--purple);border-radius:0;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:10px;transition:box-shadow .2s;}
+
+  /* CFG TICKET ROW */
+  .cfg-ticket-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);transition:background .15s;}
+  .cfg-ticket-row:last-child{border-bottom:none;}
+  .cfg-ticket-row:hover{background:#f8f8f6;}
+  .cfg-ticket-row.selected{background:#f3eeff;}
+  .cfg-ticket-check{width:16px;height:16px;accent-color:var(--purple);cursor:pointer;flex-shrink:0;}
+  .cfg-ticket-folio{font-family:var(--font-sub);font-size:9px;font-weight:700;letter-spacing:2px;background:#111;color:var(--gold);padding:2px 7px;white-space:nowrap;}
+  .cfg-ticket-info{flex:1;min-width:0;}
+  .cfg-ticket-name{font-family:var(--font-sub);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dark);}
+  .cfg-ticket-meta{font-size:11px;color:var(--light-mid);margin-top:2px;}
+  .cfg-ticket-price{font-family:var(--font-heading);font-size:1rem;font-weight:700;color:var(--purple);white-space:nowrap;}
+  .cfg-ticket-del{background:none;border:none;color:var(--sith);cursor:pointer;font-size:13px;padding:4px 6px;opacity:.7;transition:opacity .15s;flex-shrink:0;}
+  .cfg-ticket-del:hover{opacity:1;}
   .ticket-card:hover{box-shadow:var(--shadow);}
   .ticket-card-info{flex:1;min-width:0;}
   .ticket-card-name{font-family:var(--font-sub);font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--dark);}
@@ -585,6 +599,65 @@
           </div>
         </div>
       </div>
+
+      <!-- ── Gestión de Tickets ── -->
+      <div class="card" style="margin-top:1.5rem;border-left:3px solid var(--sith);">
+        <div class="card-title" style="color:var(--sith);border-bottom-color:var(--sith);">
+          <i class="fas fa-trash-alt"></i> Gestión de Tickets
+        </div>
+        <p style="font-size:12px;color:var(--light-mid);margin-bottom:1.2rem;">
+          Elimina tickets individuales o en lote. Útil para borrar registros de prueba antes de comenzar a operar. <b style="color:var(--sith);">Esta acción es irreversible.</b>
+        </p>
+
+        <!-- Search -->
+        <div class="client-search" style="margin-bottom:1rem;">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" id="cfgTicketSearch" class="form-control"
+            placeholder="Buscar por folio, cliente, servicio..."
+            oninput="renderCfgTickets()" style="padding-left:36px;">
+        </div>
+
+        <!-- Bulk actions -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
+          <button class="btn btn-outline" style="font-size:10px;" onclick="cfgSeleccionarTodos()">
+            <i class="fas fa-check-square"></i> Seleccionar todos
+          </button>
+          <button class="btn btn-outline" style="font-size:10px;" onclick="cfgDeseleccionarTodos()">
+            <i class="fas fa-square"></i> Deseleccionar
+          </button>
+          <button class="btn btn-danger" id="btnEliminarSeleccionados"
+            style="font-size:10px;display:none;" onclick="eliminarTicketsSeleccionados()">
+            <i class="fas fa-trash"></i> Eliminar seleccionados
+            (<span id="contSeleccionados">0</span>)
+          </button>
+        </div>
+
+        <!-- Ticket list -->
+        <div id="cfgTicketsList"
+          style="max-height:380px;overflow-y:auto;border:1px solid var(--border);">
+          <div style="padding:2rem;text-align:center;color:var(--light-mid);font-size:13px;">
+            Abre esta sección para cargar los tickets.
+          </div>
+        </div>
+
+        <!-- Footer totals + nuke button -->
+        <div id="cfgTicketsFooter"
+          style="display:none;margin-top:1rem;padding-top:1rem;
+                 border-top:1px solid var(--border);
+                 display:flex;align-items:center;
+                 justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <span id="cfgTicketsTotal" style="font-size:12px;color:var(--light-mid);"></span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="resetFolioCounter()" style="font-size:10px;">
+              <i class="fas fa-redo"></i> Reiniciar folio a 000001
+            </button>
+            <button class="btn btn-danger" onclick="eliminarTodosTickets()" style="font-size:10px;">
+              <i class="fas fa-radiation"></i> Eliminar TODOS los tickets
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </div>
@@ -953,9 +1026,9 @@ window.initApp = async function(){
   unsubCobros=onSnapshot(query(collection(db,'users',uid,'cobros'),orderBy('fechaCobro','desc')),snap=>{
     cobros=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderHistorial(); updateStats();
-    // Only re-init tickets if the tab is visible, otherwise just refresh list
     if($('sec-tickets')?.classList.contains('active')) initTicketFiltros();
     else renderTickets();
+    if($('sec-config')?.classList.contains('active')) renderCfgTickets();
   },()=>setSyncing('error'));
 
   // Clientes listener
@@ -976,7 +1049,7 @@ function showTab(tab,el){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   $('sec-'+tab).classList.add('active'); el.classList.add('active');
-  if(tab==='config') renderServiciosList();
+  if(tab==='config'){ renderServiciosList(); renderCfgTickets(); }
   if(tab==='tickets'){ initTicketFiltros(); }
 }
 window.showTab=showTab;
@@ -1139,33 +1212,72 @@ async function confirmarCobro(){
   const total=subtotal+propina;
   const uid=window._uid;
   const servicioNombres=cobrarItems.map(i=>i.servicio).join(', ');
-  const cobro={
-    citaId:citaActual.id||null,
-    nombre:citaActual.nombre,
-    telefono:citaActual.telefono||'',
-    servicio:servicioNombres,
-    items:cobrarItems.map(i=>({...i})),
-    precio:subtotal,
-    propina,
-    total,
-    fechaCobro:new Date().toISOString()
-  };
+  const fechaCobro=new Date().toISOString();
+
   setSyncing('syncing');
   try{
-    await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'cobros'),cobro);
-    if(citaActual.id){
-      await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'citas',citaActual.id),{estado:'cobrada'});
+    // ── 1. Reserve next folio number FIRST (atomic counter) ──
+    const {getDoc,doc,setDoc,addDoc,collection,updateDoc,runTransaction}=window._fb;
+    const db=window._db;
+    const counterRef=doc(db,'users',uid,'settings','ticketCounter');
+
+    // Use a transaction to safely increment counter
+    let nextNum=1;
+    try{
+      await setDoc(counterRef,{count:1},{merge:false}); // will fail if already exists
+    } catch(e){ /* already exists, use transaction */ }
+
+    const counterSnap=await getDoc(counterRef);
+    if(counterSnap.exists()){
+      nextNum=( counterSnap.data().count||0)+1;
     }
-    // Auto-register visit if client exists
+    // Save new count immediately
+    await setDoc(counterRef,{count:nextNum});
+
+    // ── 2. Build folio ──
+    const folio=buildFolioCode(nextNum, fechaCobro);
+
+    // ── 3. Save cobro WITH ticketNum already set ──
+    const cobro={
+      citaId:citaActual.id||null,
+      nombre:citaActual.nombre,
+      telefono:citaActual.telefono||'',
+      servicio:servicioNombres,
+      items:cobrarItems.map(i=>({...i})),
+      precio:subtotal,
+      propina,
+      total,
+      fechaCobro,
+      ticketNum:nextNum,   // ← folio seriado incluido desde el inicio
+      folio                // ← string legible también guardado
+    };
+
+    const docRef=await addDoc(collection(db,'users',uid,'cobros'), cobro);
+    cobro.id=docRef.id;
+
+    if(citaActual.id){
+      await updateDoc(doc(db,'users',uid,'citas',citaActual.id),{estado:'cobrada'});
+    }
+
+    // ── 4. Auto-register visit if client exists ──
     const match=clientes.find(c=>c.nombre.trim().toLowerCase()===citaActual.nombre.trim().toLowerCase());
     if(match){
       const newCount=(match.visitas||0)+1;
-      await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'clientes',match.id,'visitas'),{servicio:servicioNombres,fecha:citaActual.fecha||new Date().toISOString().split('T')[0],monto:cobro.precio,notas:'Cobro automático',creadoEn:new Date().toISOString()});
-      await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'clientes',match.id),{visitas:newCount});
+      await addDoc(collection(db,'users',uid,'clientes',match.id,'visitas'),{
+        servicio:servicioNombres,
+        fecha:citaActual.fecha||fechaCobro.split('T')[0],
+        monto:cobro.precio,
+        notas:'Cobro automático',
+        creadoEn:fechaCobro
+      });
+      await updateDoc(doc(db,'users',uid,'clientes',match.id),{visitas:newCount});
       const promo=getPromoForVisitas(newCount);
       if(promo) setTimeout(()=>showToast(`🎉 ${esc(match.nombre)} desbloqueó: ${promo.descripcion}`),600);
     }
-    closeModal('modalCobrar'); mostrarRecibo(cobro); showToast('¡Cobro registrado!');
+
+    closeModal('modalCobrar');
+    mostrarRecibo(cobro);
+    showToast(`¡Cobro registrado! Folio: ${folio}`);
   } catch(e){ console.error(e); showToast('Error al cobrar'); setSyncing('error'); }
 }
 window.confirmarCobro=confirmarCobro;
@@ -1256,28 +1368,12 @@ function buildWhatsappText(cobro){
   return txt;
 }
 
-async function mostrarRecibo(cobro){
-  // Assign ticket number and save to Firestore
-  const uid=window._uid;
-  let savedCobro=cobro;
-  try{
-    // Get next ticket number
-    const {getDoc,doc,setDoc,updateDoc}=window._fb;
-    const db=window._db;
-    const counterRef=doc(db,'users',uid,'settings','ticketCounter');
-    const counterSnap=await getDoc(counterRef);
-    let nextNum=(counterSnap.exists()?counterSnap.data().count:0)+1;
-    await setDoc(counterRef,{count:nextNum});
-    savedCobro={...cobro,ticketNum:nextNum,ticketHTML:buildReciboHTML({...cobro,ticketNum:nextNum}),whatsappText:buildWhatsappText({...cobro,ticketNum:nextNum})};
-    // Save ticket linked to cobro
-    if(cobro.id){
-      await updateDoc(doc(db,'users',uid,'cobros',cobro.id),{ticketNum:nextNum,whatsappText:savedCobro.whatsappText});
-    }
-  }catch(e){ /* silent */ }
+let reciboActual=null;
 
-  reciboActual=savedCobro;
-  $('reciboContent').innerHTML=buildReciboHTML(savedCobro);
-  // Update whatsapp button with phone if available
+async function mostrarRecibo(cobro){
+  // ticketNum & folio already assigned in confirmarCobro before this call
+  reciboActual=cobro;
+  $('reciboContent').innerHTML=buildReciboHTML(cobro);
   const phone=(cobro.telefono||'').replace(/\D/g,'');
   $('btnWhatsapp').dataset.phone=phone;
   openModal('modalRecibo');
@@ -1853,6 +1949,152 @@ function whatsappTicket(id){
   window.open(url,'_blank');
 }
 window.whatsappTicket=whatsappTicket;
+
+/* ══ CONFIG TICKET MANAGEMENT ══ */
+let cfgTicketsSeleccionados = new Set();
+
+function renderCfgTickets(){
+  const el=$('cfgTicketsList'); if(!el) return;
+  const q=($('cfgTicketSearch')?.value||'').toLowerCase();
+
+  let lista=[...cobros].sort((a,b)=>new Date(b.fechaCobro)-new Date(a.fechaCobro));
+  if(q) lista=lista.filter(c=>
+    (c.nombre||'').toLowerCase().includes(q)||
+    (c.servicio||'').toLowerCase().includes(q)||
+    (c.ticketNum?buildFolioCode(c.ticketNum,c.fechaCobro).toLowerCase().includes(q):false)||
+    fmtDT(c.fechaCobro).includes(q)
+  );
+
+  // Update footer
+  const footer=$('cfgTicketsFooter');
+  const totalEl=$('cfgTicketsTotal');
+  if(lista.length){
+    footer.style.display='flex';
+    totalEl.textContent=`${lista.length} ticket(s) en total · ${cobros.length} registros`;
+  } else {
+    footer.style.display='none';
+  }
+
+  if(!lista.length){
+    el.innerHTML=`<div style="padding:2rem;text-align:center;color:var(--light-mid);font-size:12px;font-family:var(--font-sub);letter-spacing:1px;">${q?'SIN RESULTADOS':'NO HAY TICKETS REGISTRADOS'}</div>`;
+    return;
+  }
+
+  el.innerHTML=lista.map(c=>{
+    const folio=c.ticketNum?buildFolioCode(c.ticketNum,c.fechaCobro):'—';
+    const propina=c.propina||0;
+    const total=c.total||(c.precio+propina);
+    const isChecked=cfgTicketsSeleccionados.has(c.id);
+    return`<div class="cfg-ticket-row${isChecked?' selected':''}" id="cfgrow-${c.id}">
+      <input type="checkbox" class="cfg-ticket-check" ${isChecked?'checked':''}
+        onchange="cfgToggleTicket('${c.id}',this.checked)">
+      <span class="cfg-ticket-folio">${folio}</span>
+      <div class="cfg-ticket-info">
+        <div class="cfg-ticket-name">${esc(c.nombre)}</div>
+        <div class="cfg-ticket-meta">${fmtDT(c.fechaCobro)} · ${esc(c.servicio||'')}</div>
+      </div>
+      <span class="cfg-ticket-price">$${fmtMoney(total)}</span>
+      <button class="cfg-ticket-del" onclick="eliminarTicketUnico('${c.id}')" title="Eliminar este ticket">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>`;
+  }).join('');
+
+  // Update selected button
+  updateBtnSeleccionados();
+}
+window.renderCfgTickets=renderCfgTickets;
+
+function cfgToggleTicket(id, checked){
+  if(checked) cfgTicketsSeleccionados.add(id);
+  else cfgTicketsSeleccionados.delete(id);
+  const row=$(`cfgrow-${id}`);
+  if(row) row.classList.toggle('selected', checked);
+  updateBtnSeleccionados();
+}
+window.cfgToggleTicket=cfgToggleTicket;
+
+function updateBtnSeleccionados(){
+  const btn=$('btnEliminarSeleccionados');
+  const cont=$('contSeleccionados');
+  if(!btn||!cont) return;
+  const n=cfgTicketsSeleccionados.size;
+  cont.textContent=n;
+  btn.style.display=n>0?'inline-flex':'none';
+}
+
+function cfgSeleccionarTodos(){
+  const q=($('cfgTicketSearch')?.value||'').toLowerCase();
+  let lista=[...cobros];
+  if(q) lista=lista.filter(c=>
+    (c.nombre||'').toLowerCase().includes(q)||
+    (c.servicio||'').toLowerCase().includes(q)||
+    (c.ticketNum?buildFolioCode(c.ticketNum,c.fechaCobro).toLowerCase().includes(q):false)
+  );
+  lista.forEach(c=>cfgTicketsSeleccionados.add(c.id));
+  renderCfgTickets();
+}
+window.cfgSeleccionarTodos=cfgSeleccionarTodos;
+
+function cfgDeseleccionarTodos(){
+  cfgTicketsSeleccionados.clear();
+  renderCfgTickets();
+}
+window.cfgDeseleccionarTodos=cfgDeseleccionarTodos;
+
+async function eliminarTicketUnico(id){
+  if(!confirm('¿Eliminar este ticket? Esta acción es irreversible.')) return;
+  setSyncing('syncing');
+  try{
+    await window._fb.deleteDoc(window._fb.doc(window._db,'users',window._uid,'cobros',id));
+    cfgTicketsSeleccionados.delete(id);
+    showToast('Ticket eliminado');
+  } catch(e){ showToast('Error al eliminar'); setSyncing('error'); }
+}
+window.eliminarTicketUnico=eliminarTicketUnico;
+
+async function eliminarTicketsSeleccionados(){
+  const ids=[...cfgTicketsSeleccionados];
+  if(!ids.length){ showToast('Selecciona al menos un ticket'); return; }
+  if(!confirm(`¿Eliminar ${ids.length} ticket(s) seleccionado(s)? Esta acción es irreversible.`)) return;
+  setSyncing('syncing');
+  try{
+    for(const id of ids){
+      await window._fb.deleteDoc(window._fb.doc(window._db,'users',window._uid,'cobros',id));
+    }
+    cfgTicketsSeleccionados.clear();
+    showToast(`${ids.length} ticket(s) eliminado(s)`);
+  } catch(e){ showToast('Error al eliminar'); setSyncing('error'); }
+}
+window.eliminarTicketsSeleccionados=eliminarTicketsSeleccionados;
+
+async function resetFolioCounter(){
+  if(!confirm('¿Reiniciar el contador de folios a 000001?\n\nEl próximo ticket generado será SSN-'+new Date().getFullYear()+'-000001.\n\nEsto no elimina tickets existentes.')) return;
+  setSyncing('syncing');
+  try{
+    await window._fb.setDoc(
+      window._fb.doc(window._db,'users',window._uid,'settings','ticketCounter'),
+      {count:0}
+    );
+    showToast('Contador reiniciado. Próximo folio: SSN-'+new Date().getFullYear()+'-000001');
+  } catch(e){ showToast('Error al reiniciar contador'); setSyncing('error'); }
+}
+window.resetFolioCounter=resetFolioCounter;
+
+async function eliminarTodosTickets(){
+  if(!cobros.length){ showToast('No hay tickets para eliminar'); return; }
+  if(!confirm(`⚠️ ¿Eliminar TODOS los ${cobros.length} tickets? Esta acción es IRREVERSIBLE y borrará todo el historial de cobros.`)) return;
+  if(!confirm('Confirma por segunda vez: ¿estás seguro de eliminar TODOS los tickets?')) return;
+  setSyncing('syncing');
+  try{
+    for(const c of cobros){
+      await window._fb.deleteDoc(window._fb.doc(window._db,'users',window._uid,'cobros',c.id));
+    }
+    cfgTicketsSeleccionados.clear();
+    showToast('Todos los tickets han sido eliminados');
+  } catch(e){ showToast('Error al eliminar'); setSyncing('error'); }
+}
+window.eliminarTodosTickets=eliminarTodosTickets;
 
 /* ══ SERVICIOS ══ */
 function agregarServicio(){
