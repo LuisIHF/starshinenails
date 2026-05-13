@@ -206,6 +206,19 @@
   .tip-btn.active{background:var(--deep-rose);color:white;border-color:var(--deep-rose);}
   .tip-btn.tip-none.active{background:var(--light-mid);border-color:var(--light-mid);}
 
+  /* MULTI-SERVICIO COBRO */
+  .servicio-cobro-item{display:flex;align-items:center;gap:8px;background:white;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px;}
+  .servicio-cobro-item:hover{border-color:var(--blush);}
+  .servicio-cobro-nombre{flex:1;font-size:13px;font-weight:500;color:var(--dark);}
+  .servicio-cobro-precio{width:90px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-align:right;outline:none;font-family:'DM Sans',sans-serif;}
+  .servicio-cobro-precio:focus{border-color:var(--rose);}
+  .servicio-cobro-del{background:none;border:none;color:#c0392b;cursor:pointer;font-size:14px;padding:4px;flex-shrink:0;opacity:0.7;transition:opacity .15s;}
+  .servicio-cobro-del:hover{opacity:1;}
+  .add-servicio-row{display:flex;gap:8px;align-items:flex-end;margin-top:8px;}
+  .add-servicio-row select{flex:1;}
+  .cobro-section-title{font-size:11px;font-weight:500;color:var(--mid);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;margin-top:12px;}
+  .modal-cobrar-lg{max-width:500px;}
+
   /* SERVICIOS LIST */
   .servicio-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:10px 12px;background:white;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;}
   .servicio-item:hover{box-shadow:var(--shadow);}
@@ -344,7 +357,9 @@
           <button class="btn btn-primary btn-full" onclick="guardarCita()"><i class="fas fa-save"></i> Guardar Cita</button>
         </div>
         <div>
-          <div class="section-header"><div class="section-title">Citas Pendientes</div></div>
+          <div class="section-header"><div class="section-title">Citas Pendientes</div>
+            <button class="btn btn-cobrar" style="font-size:12px;" onclick="abrirCobrarRapido()"><i class="fas fa-plus"></i> Cobro rápido</button>
+          </div>
           <div id="listaCitas"><div class="empty-state"><i class="fas fa-calendar-times"></i><p>No hay citas pendientes</p></div></div>
         </div>
       </div>
@@ -648,26 +663,53 @@
 
 <!-- MODAL COBRAR -->
 <div class="modal-backdrop" id="modalCobrar">
-  <div class="modal">
-    <div class="modal-header"><span><i class="fas fa-money-bill-wave" style="margin-right:8px;"></i>Cobrar Servicio</span><button class="modal-close" onclick="closeModal('modalCobrar')"><i class="fas fa-times"></i></button></div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--mid);margin-bottom:1rem;">Confirma o ajusta el precio antes de cobrar.</p>
-      <div id="cobrarInfo" style="background:var(--cream);border-radius:8px;padding:12px;margin-bottom:1rem;font-size:13px;line-height:1.8;"></div>
-      <div class="form-group"><label class="form-label">Precio del servicio</label><input type="number" id="cobrarPrecio" class="form-control" min="0" step="0.01" oninput="recalcTotal()"></div>
-      <div class="form-group">
-        <label class="form-label">Propina <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--light-mid);">(opcional)</span></label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;" id="tipBtns">
-          <button type="button" class="tip-btn" onclick="setTipPct(10)">10%</button>
-          <button type="button" class="tip-btn" onclick="setTipPct(15)">15%</button>
-          <button type="button" class="tip-btn" onclick="setTipPct(20)">20%</button>
-          <button type="button" class="tip-btn tip-none" onclick="setTipPct(0)">Sin propina</button>
+  <div class="modal modal-cobrar-lg">
+    <div class="modal-header"><span><i class="fas fa-money-bill-wave" style="margin-right:8px;"></i>Cobrar Servicio(s)</span><button class="modal-close" onclick="closeModal('modalCobrar')"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body" style="max-height:75vh;overflow-y:auto;">
+
+      <!-- Info del cliente -->
+      <div id="cobrarInfo" style="background:var(--cream);border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:13px;line-height:1.8;"></div>
+
+      <!-- Lista de servicios a cobrar -->
+      <div class="cobro-section-title"><i class="fas fa-scissors" style="margin-right:4px;"></i>Servicios</div>
+      <div id="cobrarServiciosList"></div>
+
+      <!-- Agregar servicio extra -->
+      <div class="add-servicio-row">
+        <select id="cobrarAddServicio" class="form-control" style="flex:1;">
+          <option value="">+ Agregar otro servicio...</option>
+        </select>
+        <button type="button" class="btn btn-outline" style="padding:8px 12px;flex-shrink:0;" onclick="cobrarAgregarServicio()">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+
+      <!-- Propina -->
+      <div class="cobro-section-title" style="margin-top:14px;"><i class="fas fa-heart" style="margin-right:4px;color:var(--rose);"></i>Propina <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--light-mid);">(opcional)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;" id="tipBtns">
+        <button type="button" class="tip-btn" onclick="setTipPct(10)">10%</button>
+        <button type="button" class="tip-btn" onclick="setTipPct(15)">15%</button>
+        <button type="button" class="tip-btn" onclick="setTipPct(20)">20%</button>
+        <button type="button" class="tip-btn tip-none" onclick="setTipPct(0)">Sin propina</button>
+      </div>
+      <input type="number" id="cobrarPropina" class="form-control" min="0" step="0.01" placeholder="O escribe un monto manual" oninput="recalcTotal()">
+
+      <!-- Totales -->
+      <div style="margin-top:14px;background:var(--dark);color:var(--cream);border-radius:10px;padding:14px 16px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;opacity:.7;margin-bottom:4px;">
+          <span>Subtotal servicios</span>
+          <span id="cobrarSubtotal">$0.00</span>
         </div>
-        <input type="number" id="cobrarPropina" class="form-control" min="0" step="0.01" placeholder="O escribe un monto manual" oninput="recalcTotal()">
+        <div id="cobrarPropinaRow" style="display:none;justify-content:space-between;font-size:12px;color:#88d07a;margin-bottom:4px;">
+          <span>Propina</span>
+          <span id="cobrarPropinaAmt">$0.00</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,0.15);padding-top:8px;margin-top:4px;">
+          <span style="font-size:13px;opacity:.85;">Total a cobrar</span>
+          <span id="cobrarTotal" style="font-family:var(--font-heading);font-size:1.6rem;font-weight:800;color:var(--gold);">$0.00</span>
+        </div>
       </div>
-      <div style="background:var(--dark);color:var(--cream);border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:.5rem;">
-        <span style="font-size:13px;opacity:.8;">Total a cobrar</span>
-        <span id="cobrarTotal" style="font-family:var(--font-heading);font-size:1.5rem;font-weight:600;color:var(--gold);">$0.00</span>
-      </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCobrar')">Cancelar</button>
@@ -961,56 +1003,143 @@ function renderCitas(){
 }
 
 /* ══ COBROS ══ */
+let cobrarItems=[]; // [{servicio, precio}]
+
 function abrirCobrar(id){
   citaActual=citas.find(c=>c.id===id); if(!citaActual)return;
-  $('cobrarInfo').innerHTML=`<b>${esc(citaActual.nombre)}</b><br>${citaActual.telefono?`<i class="fas fa-phone fa-xs"></i> ${esc(citaActual.telefono)}<br>`:''}<i class="fas fa-scissors fa-xs"></i> ${esc(citaActual.servicio)}<br><i class="fas fa-calendar fa-xs"></i> ${fmtDate(citaActual.fecha)}${citaActual.hora?' · '+citaActual.hora:''}`;
-  $('cobrarPrecio').value=citaActual.precio;
+  $('cobrarInfo').innerHTML=`<b>${esc(citaActual.nombre)}</b>${citaActual.telefono?`<br><i class="fas fa-phone fa-xs"></i> ${esc(citaActual.telefono)}`:''}`;
+  // Init items with the cita's service
+  cobrarItems=[{servicio:citaActual.servicio, precio:parseFloat(citaActual.precio)||0}];
   $('cobrarPropina').value='';
   document.querySelectorAll('.tip-btn').forEach(b=>b.classList.remove('active'));
+  buildServicioOptions('cobrarAddServicio');
+  renderCobrarItems();
   recalcTotal();
   openModal('modalCobrar');
 }
 window.abrirCobrar=abrirCobrar;
 
+// Cobro rápido: sin cita previa
+function abrirCobrarRapido(){
+  citaActual={id:null,nombre:'',telefono:'',servicio:'',precio:0,fecha:new Date().toISOString().split('T')[0],hora:''};
+  $('cobrarInfo').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><label class="form-label">Cliente *</label><input type="text" id="cobrarRapidoNombre" class="form-control" placeholder="Nombre del cliente" oninput="citaActual.nombre=this.value;citaActual.telefono=$('cobrarRapidoTel').value;"></div>
+      <div><label class="form-label">Teléfono</label><input type="tel" id="cobrarRapidoTel" class="form-control" placeholder="555-000-1234" oninput="citaActual.telefono=this.value;"></div>
+    </div>`;
+  cobrarItems=[];
+  $('cobrarPropina').value='';
+  document.querySelectorAll('.tip-btn').forEach(b=>b.classList.remove('active'));
+  buildServicioOptions('cobrarAddServicio');
+  renderCobrarItems();
+  recalcTotal();
+  openModal('modalCobrar');
+}
+window.abrirCobrarRapido=abrirCobrarRapido;
+
+function renderCobrarItems(){
+  const el=$('cobrarServiciosList'); if(!el) return;
+  if(!cobrarItems.length){ el.innerHTML='<p style="font-size:12px;color:var(--light-mid);text-align:center;padding:8px;">Sin servicios agregados</p>'; return; }
+  el.innerHTML=cobrarItems.map((item,i)=>`
+    <div class="servicio-cobro-item">
+      <span class="servicio-cobro-nombre">${esc(item.servicio)}</span>
+      <span style="font-size:11px;color:var(--light-mid);margin-right:2px;">$</span>
+      <input type="number" class="servicio-cobro-precio" value="${item.precio}" min="0" step="0.01"
+        oninput="cobrarUpdatePrecio(${i},this.value)" title="Editar precio">
+      ${cobrarItems.length>1?`<button class="servicio-cobro-del" onclick="cobrarEliminarItem(${i})" title="Quitar"><i class="fas fa-times"></i></button>`:'<span style="width:22px;"></span>'}
+    </div>`).join('');
+}
+
+function cobrarUpdatePrecio(i, val){
+  cobrarItems[i].precio=parseFloat(val)||0;
+  recalcTotal();
+}
+window.cobrarUpdatePrecio=cobrarUpdatePrecio;
+
+function cobrarEliminarItem(i){
+  cobrarItems.splice(i,1);
+  renderCobrarItems();
+  recalcTotal();
+}
+window.cobrarEliminarItem=cobrarEliminarItem;
+
+function cobrarAgregarServicio(){
+  const sel=$('cobrarAddServicio');
+  const svc=sel.value; if(!svc) return;
+  const precio=PRECIOS[svc]||0;
+  cobrarItems.push({servicio:svc, precio});
+  sel.value='';
+  renderCobrarItems();
+  recalcTotal();
+}
+window.cobrarAgregarServicio=cobrarAgregarServicio;
+
 function recalcTotal(){
-  const precio=parseFloat($('cobrarPrecio').value)||0;
-  const propina=parseFloat($('cobrarPropina').value)||0;
-  $('cobrarTotal').textContent='$'+fmtMoney(precio+propina)+' MXN';
+  const subtotal=cobrarItems.reduce((s,item)=>s+item.precio,0);
+  const propina=parseFloat($('cobrarPropina')?.value)||0;
+  const total=subtotal+propina;
+  if($('cobrarSubtotal')) $('cobrarSubtotal').textContent='$'+fmtMoney(subtotal)+' MXN';
+  if($('cobrarTotal')) $('cobrarTotal').textContent='$'+fmtMoney(total)+' MXN';
+  const propinaRow=$('cobrarPropinaRow');
+  if(propinaRow){ propinaRow.style.display=propina>0?'flex':'none'; }
+  if($('cobrarPropinaAmt')) $('cobrarPropinaAmt').textContent='$'+fmtMoney(propina)+' MXN';
 }
 window.recalcTotal=recalcTotal;
 
 function setTipPct(pct){
   document.querySelectorAll('.tip-btn').forEach(b=>b.classList.remove('active'));
-  // mark active button
   const btns=document.querySelectorAll('.tip-btn');
   const labels={'10':0,'15':1,'20':2,'0':3};
   const idx=labels[String(pct)]; if(idx!==undefined) btns[idx].classList.add('active');
-  const precio=parseFloat($('cobrarPrecio').value)||0;
-  $('cobrarPropina').value=pct>0?(precio*pct/100).toFixed(2):'';
+  const subtotal=cobrarItems.reduce((s,item)=>s+item.precio,0);
+  $('cobrarPropina').value=pct>0?(subtotal*pct/100).toFixed(2):'';
   recalcTotal();
 }
 window.setTipPct=setTipPct;
 
 async function confirmarCobro(){
-  const precio=parseFloat($('cobrarPrecio').value)||0;
+  if(!cobrarItems.length){ showToast('⚠ Agrega al menos un servicio'); return; }
+
+  // If cobro rápido, read name/phone from inline fields
+  const nombreInput=$('cobrarRapidoNombre');
+  if(nombreInput) citaActual.nombre=nombreInput.value.trim();
+  const telInput=$('cobrarRapidoTel');
+  if(telInput) citaActual.telefono=telInput.value.trim();
+  if(!citaActual.nombre){ showToast('⚠ El nombre del cliente es obligatorio'); nombreInput?.focus(); return; }
+
+  const subtotal=cobrarItems.reduce((s,item)=>s+item.precio,0);
   const propina=parseFloat($('cobrarPropina').value)||0;
+  const total=subtotal+propina;
   const uid=window._uid;
-  const cobro={citaId:citaActual.id,nombre:citaActual.nombre,telefono:citaActual.telefono||'',servicio:citaActual.servicio,precio,propina,total:precio+propina,fechaCobro:new Date().toISOString()};
+  const servicioNombres=cobrarItems.map(i=>i.servicio).join(', ');
+  const cobro={
+    citaId:citaActual.id||null,
+    nombre:citaActual.nombre,
+    telefono:citaActual.telefono||'',
+    servicio:servicioNombres,
+    items:cobrarItems.map(i=>({...i})),
+    precio:subtotal,
+    propina,
+    total,
+    fechaCobro:new Date().toISOString()
+  };
   setSyncing('syncing');
   try{
     await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'cobros'),cobro);
-    await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'citas',citaActual.id),{estado:'cobrada'});
+    if(citaActual.id){
+      await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'citas',citaActual.id),{estado:'cobrada'});
+    }
     // Auto-register visit if client exists
     const match=clientes.find(c=>c.nombre.trim().toLowerCase()===citaActual.nombre.trim().toLowerCase());
     if(match){
       const newCount=(match.visitas||0)+1;
-      await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'clientes',match.id,'visitas'),{servicio:citaActual.servicio,fecha:citaActual.fecha||new Date().toISOString().split('T')[0],monto:cobro.precio,notas:'Cobro automático',creadoEn:new Date().toISOString()});
+      await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'clientes',match.id,'visitas'),{servicio:servicioNombres,fecha:citaActual.fecha||new Date().toISOString().split('T')[0],monto:cobro.precio,notas:'Cobro automático',creadoEn:new Date().toISOString()});
       await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'clientes',match.id),{visitas:newCount});
       const promo=getPromoForVisitas(newCount);
       if(promo) setTimeout(()=>showToast(`🎉 ${esc(match.nombre)} desbloqueó: ${promo.descripcion}`),600);
     }
     closeModal('modalCobrar'); mostrarRecibo(cobro); showToast('¡Cobro registrado!');
-  } catch(e){ showToast('Error al cobrar'); setSyncing('error'); }
+  } catch(e){ console.error(e); showToast('Error al cobrar'); setSyncing('error'); }
 }
 window.confirmarCobro=confirmarCobro;
 
@@ -1021,6 +1150,17 @@ function buildReciboHTML(cobro){
   const propina=cobro.propina||0;
   const total=cobro.total||(cobro.precio+propina);
   const num=cobro.ticketNum?`<div style="font-size:11px;color:var(--light-mid);margin-bottom:4px;">Ticket #${cobro.ticketNum}</div>`:'';
+
+  // Build services rows — support both multi-item and legacy single
+  const items=cobro.items&&cobro.items.length?cobro.items:[{servicio:cobro.servicio,precio:cobro.precio}];
+  const serviciosHTML=items.map((it,i)=>`
+    <div class="receipt-row">
+      <span class="label">${i===0?'<i class="fas fa-scissors fa-xs"></i> ':''} ${esc(it.servicio)}</span>
+      <span class="value">$${fmtMoney(it.precio)} MXN</span>
+    </div>`).join('');
+
+  const multipleItems=items.length>1;
+
   return `
     <div class="receipt-header">
       ${num}
@@ -1034,9 +1174,9 @@ function buildReciboHTML(cobro){
     <hr class="receipt-divider">
     <div class="receipt-row"><span class="label">Cliente:</span><span class="value">${esc(cobro.nombre)}</span></div>
     ${cobro.telefono?`<div class="receipt-row"><span class="label">Tel:</span><span class="value">${esc(cobro.telefono)}</span></div>`:''}
-    <div class="receipt-row"><span class="label">Servicio:</span><span class="value">${esc(cobro.servicio)}</span></div>
     <hr class="receipt-divider">
-    <div class="receipt-row"><span class="label">Servicio:</span><span class="value">$${fmtMoney(cobro.precio)} MXN</span></div>
+    ${serviciosHTML}
+    ${multipleItems?`<div class="receipt-row" style="margin-top:4px;padding-top:4px;border-top:1px solid #eee;"><span class="label">Subtotal:</span><span class="value">$${fmtMoney(cobro.precio)} MXN</span></div>`:''}
     ${propina>0?`<div class="receipt-row"><span class="label">Propina:</span><span class="value" style="color:#6aaa5e;">$${fmtMoney(propina)} MXN</span></div>`:''}
     <hr class="receipt-divider">
     <div class="receipt-total"><span>TOTAL:</span><span>$${fmtMoney(total)} MXN</span></div>
@@ -1049,18 +1189,21 @@ function buildWhatsappText(cobro){
   const fecha=new Date(cobro.fechaCobro);
   const propina=cobro.propina||0;
   const total=cobro.total||(cobro.precio+propina);
-  const num=cobro.ticketNum?`Ticket #${cobro.ticketNum}\n`:'';
+  const num=cobro.ticketNum?`🎫 Ticket #${cobro.ticketNum}\n`:'';
+  const items=cobro.items&&cobro.items.length?cobro.items:[{servicio:cobro.servicio,precio:cobro.precio}];
+  const multipleItems=items.length>1;
+
   let txt=`✨ *${config.nombre||'StarShine Nails'}* ✨\n`;
   if(config.direccion) txt+=`📍 ${config.direccion}\n`;
   if(config.tel) txt+=`📞 ${config.tel}\n`;
-  txt+=`\n`;
-  txt+=`${num}`;
+  txt+=`\n${num}`;
   txt+=`📅 ${fecha.toLocaleDateString('es-MX',{weekday:'short',year:'numeric',month:'short',day:'numeric'})} · ${fecha.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}\n\n`;
-  txt+=`👤 Cliente: *${cobro.nombre}*\n`;
-  txt+=`💅 Servicio: ${cobro.servicio}\n\n`;
-  txt+=`💵 Servicio: $${fmtMoney(cobro.precio)} MXN\n`;
+  txt+=`👤 Cliente: *${cobro.nombre}*\n\n`;
+  txt+=`💅 *Servicios:*\n`;
+  items.forEach(it=>{ txt+=`  • ${it.servicio}: $${fmtMoney(it.precio)} MXN\n`; });
+  if(multipleItems) txt+=`\n💵 Subtotal: $${fmtMoney(cobro.precio)} MXN\n`;
   if(propina>0) txt+=`🙏 Propina: $${fmtMoney(propina)} MXN\n`;
-  txt+=`\n*TOTAL: $${fmtMoney(total)} MXN*\n\n`;
+  txt+=`\n*💰 TOTAL: $${fmtMoney(total)} MXN*\n\n`;
   txt+=`¡Gracias por tu preferencia! Vuelve pronto 💖`;
   return txt;
 }
@@ -1106,7 +1249,7 @@ window.compartirWhatsapp=compartirWhatsapp;
 function renderHistorial(){
   const el=$('historialContent');
   if(!cobros.length){ el.innerHTML='<div class="empty-state"><i class="fas fa-receipt"></i><p>Aún no hay cobros</p></div>'; return; }
-  const totalServicios=cobros.reduce((s,c)=>s+c.precio,0);
+  const totalServicios=cobros.reduce((s,c)=>s+(c.precio||0),0);
   const totalPropinas=cobros.reduce((s,c)=>s+(c.propina||0),0);
   const totalGeneral=cobros.reduce((s,c)=>s+(c.total||c.precio),0);
   el.innerHTML=`
@@ -1114,19 +1257,24 @@ function renderHistorial(){
       <span style="font-size:13px;color:var(--mid);">${cobros.length} cobro(s)</span>
       <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
         ${totalPropinas>0?`<span style="font-size:12px;color:var(--light-mid);">Propinas: <b style="color:#6aaa5e;">$${fmtMoney(totalPropinas)}</b></span>`:''}
-        <span style="font-family:var(--font-heading);font-size:1.2rem;font-weight:600;color:var(--deep-rose);">Total: $${fmtMoney(totalGeneral)} MXN</span>
+        <span style="font-family:var(--font-heading);font-size:1.2rem;font-weight:800;color:var(--deep-rose);">Total: $${fmtMoney(totalGeneral)} MXN</span>
       </div>
     </div>
     <div class="table-wrap"><table class="historial-table">
-      <thead><tr><th>Fecha</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Precio</th><th>Propina</th><th>Total</th></tr></thead>
+      <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Teléfono</th><th>Servicio(s)</th><th>Subtotal</th><th>Propina</th><th>Total</th></tr></thead>
       <tbody>${cobros.map(c=>{
         const propina=c.propina||0;
         const total=c.total||(c.precio+propina);
+        const items=c.items&&c.items.length?c.items:[{servicio:c.servicio,precio:c.precio}];
+        const servicioCell=items.length>1
+          ?`<div style="font-size:11px;line-height:1.6;">${items.map(it=>`<div>• ${esc(it.servicio)} <span style="color:var(--light-mid);">$${fmtMoney(it.precio)}</span></div>`).join('')}</div>`
+          :esc(items[0]?.servicio||c.servicio);
         return`<tr>
+          <td style="color:var(--light-mid);font-size:11px;">${c.ticketNum?'#'+c.ticketNum:'—'}</td>
           <td>${fmtDT(c.fechaCobro)}</td>
           <td><b>${esc(c.nombre)}</b></td>
           <td>${esc(c.telefono||'—')}</td>
-          <td>${esc(c.servicio)}</td>
+          <td>${servicioCell}</td>
           <td class="price-cell">$${fmtMoney(c.precio)}</td>
           <td style="color:${propina>0?'#6aaa5e':'var(--light-mid)'};">${propina>0?'$'+fmtMoney(propina):'—'}</td>
           <td class="price-cell">$${fmtMoney(total)}</td>
@@ -1138,12 +1286,24 @@ function renderHistorial(){
 function exportCSV(){
   if(!cobros.length){ showToast('No hay cobros para exportar'); return; }
   const BOM='\uFEFF';
-  const rows=cobros.map(c=>{
-    const propina=c.propina||0, total=c.total||(c.precio+propina);
-    return[fmtDT(c.fechaCobro),c.nombre,c.telefono||'',c.servicio,c.precio,propina,total].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+  // Expand multi-service cobros into individual rows per service
+  const rows=[];
+  cobros.forEach(c=>{
+    const propina=c.propina||0;
+    const total=c.total||(c.precio+propina);
+    const items=c.items&&c.items.length?c.items:[{servicio:c.servicio,precio:c.precio}];
+    const ticketNum=c.ticketNum?'#'+c.ticketNum:'';
+    if(items.length>1){
+      // First row: all data + subtotal
+      rows.push([fmtDT(c.fechaCobro),c.nombre,c.telefono||'',items.map(i=>i.servicio).join(' + '),c.precio,propina,total,ticketNum]
+        .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+    } else {
+      rows.push([fmtDT(c.fechaCobro),c.nombre,c.telefono||'',items[0]?.servicio||c.servicio,c.precio,propina,total,ticketNum]
+        .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+    }
   });
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([BOM+['Fecha de cobro,Nombre del cliente,Teléfono,Servicio,Precio servicio,Propina,Total',...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
+  a.href=URL.createObjectURL(new Blob([BOM+['Fecha de cobro,Nombre del cliente,Teléfono,Servicio(s),Subtotal servicios,Propina,Total,Ticket',...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
   a.download=`cobros_${new Date().toISOString().slice(0,10)}.csv`; a.click();
   showToast('CSV descargado');
 }
