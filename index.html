@@ -761,6 +761,23 @@
           <span style="font-size:13px;opacity:.85;">Total a cobrar</span>
           <span id="cobrarTotal" style="font-family:var(--font-heading);font-size:1.6rem;font-weight:800;color:var(--gold);">$0.00</span>
         </div>
+        <!-- Efectivo: con cuánto paga y cambio -->
+        <div id="efectivoSection" style="display:none;border-top:1px solid rgba(255,255,255,0.15);padding-top:10px;margin-top:8px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <label style="font-size:11px;opacity:.8;white-space:nowrap;flex-shrink:0;">Con cuánto paga:</label>
+            <input type="number" id="cobrarConCuanto" class="form-control" min="0" step="1" placeholder="$0.00"
+              oninput="recalcCambio()"
+              style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.25);color:#fff;font-size:14px;padding:6px 10px;flex:1;">
+          </div>
+          <div id="cambioRow" style="display:none;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;opacity:.85;">💰 Cambio:</span>
+            <span id="cobrarCambio" style="font-family:var(--font-heading);font-size:1.4rem;font-weight:800;color:#5ddf6f;">$0.00</span>
+          </div>
+          <div id="cambioFaltaRow" style="display:none;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:#ff7675;">⚠ Falta:</span>
+            <span id="cobrarFalta" style="font-family:var(--font-heading);font-size:1.3rem;font-weight:800;color:#ff7675;">$0.00</span>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -1066,8 +1083,33 @@ function setMetodoPago(tipo){
   const btns=document.querySelectorAll('.pago-btn');
   if(btns[map[tipo]]) btns[map[tipo]].classList.add('active');
   $('metodoPagoWarning').style.display='none';
+  // Mostrar/ocultar sección de efectivo
+  const ef=$('efectivoSection');
+  if(ef){ ef.style.display=tipo==='Efectivo'?'block':'none'; }
+  if(tipo!=='Efectivo'){
+    if($('cobrarConCuanto')) $('cobrarConCuanto').value='';
+    if($('cambioRow')) $('cambioRow').style.display='none';
+    if($('cambioFaltaRow')) $('cambioFaltaRow').style.display='none';
+  }
 }
 window.setMetodoPago=setMetodoPago;
+
+function recalcCambio(){
+  const total=parseFloat(String($('cobrarTotal').textContent).replace(/[^0-9.]/g,''))||0;
+  const conCuanto=parseFloat($('cobrarConCuanto').value)||0;
+  const cambio=conCuanto-total;
+  if(conCuanto<=0){ $('cambioRow').style.display='none'; $('cambioFaltaRow').style.display='none'; return; }
+  if(cambio>=0){
+    $('cobrarCambio').textContent='$'+fmtMoney(cambio);
+    $('cambioRow').style.display='flex';
+    $('cambioFaltaRow').style.display='none';
+  } else {
+    $('cobrarFalta').textContent='$'+fmtMoney(Math.abs(cambio));
+    $('cambioFaltaRow').style.display='flex';
+    $('cambioRow').style.display='none';
+  }
+}
+window.recalcCambio=recalcCambio;
 
 function abrirCobrar(id){
   citaActual=citas.find(c=>c.id===id); if(!citaActual)return;
@@ -1078,6 +1120,10 @@ function abrirCobrar(id){
   document.querySelectorAll('.tip-btn').forEach(b=>b.classList.remove('active'));
   metodoPago=null; document.querySelectorAll('.pago-btn').forEach(b=>b.classList.remove('active'));
   $('metodoPagoWarning').style.display='none';
+  if($('efectivoSection')) $('efectivoSection').style.display='none';
+  if($('cobrarConCuanto')) $('cobrarConCuanto').value='';
+  if($('cambioRow')) $('cambioRow').style.display='none';
+  if($('cambioFaltaRow')) $('cambioFaltaRow').style.display='none';
   buildServicioOptions('cobrarAddServicio');
   renderCobrarItems();
   recalcTotal();
@@ -1098,6 +1144,10 @@ function abrirCobrarRapido(){
   document.querySelectorAll('.tip-btn').forEach(b=>b.classList.remove('active'));
   metodoPago=null; document.querySelectorAll('.pago-btn').forEach(b=>b.classList.remove('active'));
   $('metodoPagoWarning').style.display='none';
+  if($('efectivoSection')) $('efectivoSection').style.display='none';
+  if($('cobrarConCuanto')) $('cobrarConCuanto').value='';
+  if($('cambioRow')) $('cambioRow').style.display='none';
+  if($('cambioFaltaRow')) $('cambioFaltaRow').style.display='none';
   buildServicioOptions('cobrarAddServicio');
   renderCobrarItems();
   recalcTotal();
@@ -1181,6 +1231,15 @@ async function confirmarCobro(){
   const subtotal=cobrarItems.reduce((s,item)=>s+item.precio,0);
   const propina=parseFloat($('cobrarPropina').value)||0;
   const total=subtotal+propina;
+  // Efectivo: validar que alcance
+  let conCuanto=null, cambio=null;
+  if(metodoPago==='Efectivo'){
+    conCuanto=parseFloat($('cobrarConCuanto').value)||0;
+    if(conCuanto>0){
+      cambio=conCuanto-total;
+      if(cambio<0){ showToast('⚠ El monto entregado es insuficiente'); $('cobrarConCuanto').focus(); return; }
+    }
+  }
   const uid=window._uid;
   const servicioNombres=cobrarItems.map(i=>i.servicio).join(', ');
   const cobro={
@@ -1193,6 +1252,8 @@ async function confirmarCobro(){
     propina,
     total,
     metodoPago:metodoPago||'No especificado',
+    conCuanto: conCuanto!==null && conCuanto>0 ? conCuanto : null,
+    cambio: cambio!==null && cambio>=0 ? cambio : null,
     fechaCobro:new Date().toISOString()
   };
   setSyncing('syncing');
@@ -1273,6 +1334,10 @@ function buildReciboHTML(cobro){
     ${propina>0?`<div style="text-align:center;font-size:11px;color:var(--light-mid);margin-top:4px;">Incluye $${fmtMoney(propina)} MXN de propina</div>`:''}
     <hr class="receipt-divider">
     <div class="receipt-row"><span class="label">Pago:</span><span class="value" style="display:flex;align-items:center;gap:5px;">${cobro.metodoPago==='Efectivo'?'💵':''}${cobro.metodoPago==='Transferencia'?'🏦':''}${cobro.metodoPago==='Tarjeta'?'💳':''} ${esc(cobro.metodoPago||'—')}</span></div>
+    ${cobro.metodoPago==='Efectivo'&&cobro.conCuanto!=null?`
+    <div class="receipt-row"><span class="label">Con:</span><span class="value">$${fmtMoney(cobro.conCuanto)} MXN</span></div>
+    <div class="receipt-row" style="color:#27ae60;font-weight:bold;"><span class="label">Cambio:</span><span class="value" style="color:#27ae60;">$${fmtMoney(cobro.cambio||0)} MXN</span></div>`
+    :''}
     <hr class="receipt-divider">
     <div class="receipt-thanks">¡Gracias por tu preferencia!<br>Vuelve pronto. ✨</div>
     <div class="receipt-barcode">${barcode}</div>
@@ -1301,6 +1366,10 @@ function buildWhatsappText(cobro){
   txt+=`\n*💰 TOTAL: $${fmtMoney(total)} MXN*\n`;
   const pagoIcon={'Efectivo':'💵','Transferencia':'🏦','Tarjeta':'💳'};
   if(cobro.metodoPago) txt+=`${pagoIcon[cobro.metodoPago]||'💳'} Pago: *${cobro.metodoPago}*\n`;
+  if(cobro.metodoPago==='Efectivo'&&cobro.conCuanto!=null){
+    txt+=`   Con: $${fmtMoney(cobro.conCuanto)} MXN\n`;
+    txt+=`   💚 Cambio: *$${fmtMoney(cobro.cambio||0)} MXN*\n`;
+  }
   txt+=`\n¡Gracias por tu preferencia! Vuelve pronto 💖`;
   return txt;
 }
@@ -1358,7 +1427,7 @@ function renderHistorial(){
       </div>
     </div>
     <div class="table-wrap"><table class="historial-table">
-      <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Teléfono</th><th>Servicio(s)</th><th>Subtotal</th><th>Propina</th><th>Total</th><th>Pago</th></tr></thead>
+      <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Teléfono</th><th>Servicio(s)</th><th>Subtotal</th><th>Propina</th><th>Total</th><th>Pago</th><th>Cambio</th></tr></thead>
       <tbody>${cobros.map(c=>{
         const propina=c.propina||0;
         const total=c.total||(c.precio+propina);
@@ -1376,6 +1445,7 @@ function renderHistorial(){
           <td style="color:${propina>0?'#6aaa5e':'var(--light-mid)'};">${propina>0?'$'+fmtMoney(propina):'—'}</td>
           <td class="price-cell">$${fmtMoney(total)}</td>
           <td style="font-size:12px;">${c.metodoPago==='Efectivo'?'💵 Efectivo':c.metodoPago==='Transferencia'?'🏦 Transferencia':c.metodoPago==='Tarjeta'?'💳 Tarjeta':'—'}</td>
+          <td style="font-size:12px;color:${c.cambio!=null&&c.cambio>=0?'#27ae60':'var(--light-mid)'}">${c.metodoPago==='Efectivo'&&c.conCuanto!=null?'$'+fmtMoney(c.cambio||0)+' MXN':'—'}</td>
         </tr>`;}).join('')}
       </tbody>
     </table></div>`;
@@ -1393,15 +1463,17 @@ function exportCSV(){
     const ticketNum=c.ticketNum?buildFolioCode(c.ticketNum,c.fechaCobro):'';
     if(items.length>1){
       // First row: all data + subtotal
-      rows.push([fmtDT(c.fechaCobro),c.nombre,c.telefono||'',items.map(i=>i.servicio).join(' + '),c.precio,propina,total,ticketNum,c.metodoPago||'']
+      const cambioVal=c.metodoPago==='Efectivo'&&c.conCuanto!=null?fmtMoney(c.cambio||0):'';
+      rows.push([fmtDT(c.fechaCobro),c.nombre,c.telefono||'',items.map(i=>i.servicio).join(' + '),c.precio,propina,total,ticketNum,c.metodoPago||'',cambioVal]
         .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     } else {
-      rows.push([fmtDT(c.fechaCobro),c.nombre,c.telefono||'',items[0]?.servicio||c.servicio,c.precio,propina,total,ticketNum,c.metodoPago||'']
+      const cambioVal2=c.metodoPago==='Efectivo'&&c.conCuanto!=null?fmtMoney(c.cambio||0):'';
+      rows.push([fmtDT(c.fechaCobro),c.nombre,c.telefono||'',items[0]?.servicio||c.servicio,c.precio,propina,total,ticketNum,c.metodoPago||'',cambioVal2]
         .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
     }
   });
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([BOM+['Fecha de cobro,Nombre del cliente,Teléfono,Servicio(s),Subtotal servicios,Propina,Total,Ticket,Método de pago',...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
+  a.href=URL.createObjectURL(new Blob([BOM+['Fecha de cobro,Nombre del cliente,Teléfono,Servicio(s),Subtotal servicios,Propina,Total,Ticket,Método de pago,Cambio',...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
   a.download=`cobros_${new Date().toISOString().slice(0,10)}.csv`; a.click();
   showToast('CSV descargado');
 }
