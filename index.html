@@ -1827,6 +1827,7 @@ function renderTickets(){
         <div class="ticket-card-actions">
           <button class="btn btn-outline" style="font-size:11px;padding:5px 10px;" onclick="reimprimirTicket('${c.id}')"><i class="fas fa-print"></i> Reimprimir</button>
           <button class="btn btn-whatsapp" style="font-size:11px;padding:5px 10px;" onclick="whatsappTicket('${c.id}')"><i class="fab fa-whatsapp"></i></button>
+          <button class="btn btn-danger" style="font-size:11px;padding:5px 10px;" onclick="eliminarCobro('${c.id}')"><i class="fas fa-trash"></i> Eliminar</button>
         </div>
       </div>
     </div>`;
@@ -1843,7 +1844,33 @@ function reimprimirTicket(id){
   openModal('modalRecibo');
 }
 window.reimprimirTicket=reimprimirTicket;
-
+async function eliminarCobro(id){
+  if(!confirm('⚠️ ¿Estás segura de eliminar este cobro?\n\nEsta acción no se puede deshacer y el ticket se borrará permanentemente.')){
+    return;
+  }
+  
+  setSyncing('syncing');
+  try{
+    const uid=window._uid;
+    const {deleteDoc,doc}=window._fb;
+    const db=window._db;
+    
+    // Eliminar el cobro de Firestore
+    await deleteDoc(doc(db,'users',uid,'cobros',id));
+    
+    showToast('🗑️ Ticket eliminado correctamente');
+    
+    // Si el ticket eliminado estaba afectando el contador de visitas del cliente,
+    // aquí podrías agregar lógica para actualizar las visitas si es necesario
+    // (opcional - por ahora solo eliminamos el cobro)
+    
+  } catch(e){
+    console.error(e);
+    showToast('❌ Error al eliminar el ticket');
+    setSyncing('error');
+  }
+}
+window.eliminarCobro=eliminarCobro;
 function whatsappTicket(id){
   const cobro=cobros.find(c=>c.id===id); if(!cobro)return;
   const txt=cobro.whatsappText||buildWhatsappText(cobro);
