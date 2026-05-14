@@ -215,7 +215,7 @@
   .receipt-logo{width:72px;height:72px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 8px auto;border:2px solid #D4AF37;}
   .receipt-folio{display:inline-block;background:#111111;color:#D4AF37;font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:3px 12px;margin-bottom:8px;}
   .receipt-folio-wrap{text-align:center;margin-bottom:4px;}
-  .receipt-barcode{font-family:'Courier New',monospace;font-size:9px;color:#bbb;letter-spacing:3px;text-align:center;margin-top:6px;word-break:break-all;}
+  .receipt-barcode{text-align:center;margin-top:10px;overflow:hidden;}
   .receipt-stamp{border:2px dashed #D4AF37;padding:4px 10px;display:inline-block;font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#6B46C1;margin-top:8px;}
 
   @media print{
@@ -1287,8 +1287,96 @@ function buildFolioCode(ticketNum, fechaISO){
 }
 
 function buildBarcodeStr(folio){
-  // Visual pseudo-barcode from folio string
-  return folio.replace(/-/g,'').split('').map(c=>c.charCodeAt(0)%2===0?'█':'▌').join('');
+  // Genera un SVG de código de barras Code 128 real a partir del folio
+  // Tabla Code 128 B: cada carácter → patrón de 6 módulos (barras/espacios)
+  const CODE128B = {
+    ' ':11011001100,' ':'11001101100','!':11001100110,'"':10010011000,'#':10010001100,
+    '$':10001001100,'%':10011001000,'&':10011000100,"'":10001100100,'(':11001001000,
+    ')':11001000100,'*':11000100100,'+':10110011100,',':10011011100,'-':10011001110,
+    '.':10111001100,'/':10011101100,'0':11001011100,'1':11001001110,'2':11011011000,
+    '3':11011000110,'4':11000011010,'5':11001101110,'6':11101101110,'7':11101001100,
+    '8':11100101100,'9':11100100110,'A':11101100100,'B':11100110100,'C':11100110010,
+    'D':11011011110,'E':11011110110,'F':11110110110,'G':10101011110,'H':10100011110,
+    'I':10001011110,'J':10111101000,'K':10111100010,'L':11110101000,'M':11110100010,
+    'N':10111011110,'O':10111101110,'P':11101011110,'Q':11110101110,'R':11010000100,
+    'S':11010010000,'T':11010011100,'U':1101000010,'V':11000010100,'W':10001011000,
+    'X':10001000110,'Y':10011000010,'Z':10000110100,'-':10000110010,'_':11000010010,
+    'a':10110101000,'b':10110100010,'c':10110010000,'d':10011010000,'e':10011010110,
+    'f':10111011000,'g':10011101000,'h':10011100010,'i':11001010000,'j':11110111010,
+    'k':11000010010,'l':11001010000,'m':10100010000,'n':10100110000,'o':10010110000,
+    'p':10110100000,'q':10010010110,'r':11011100100,'s':11011101000,'t':11011110100,
+    'u':11001001110,'v':11000110100,'w':11011010000,'x':11011011100,'y':11000101110,
+    'z':11110001010
+  };
+
+  // Tabla simplificada Code 128 B como array indexado por valor ASCII
+  // Patron real Code 128 B (11 bits por carácter)
+  const C128 = [
+    [2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],
+    [1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],
+    [2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],
+    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],
+    [2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],
+    [3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],
+    [2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],
+    [1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],
+    [2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],
+    [1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],[3,1,3,1,2,1],[2,1,1,3,3,1],
+    [2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],
+    [3,1,1,3,2,1],[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],
+    [3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],[1,1,1,4,2,2],
+    [1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],
+    [1,1,2,4,1,2],[1,2,2,1,1,4],[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],
+    [2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],
+    [1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],
+    [1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],[4,2,1,2,1,1],[2,1,2,1,4,1],
+    [2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],
+    [1,1,4,1,1,3],[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],
+    [1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],[2,1,1,2,1,4],
+    [2,1,1,2,3,2]
+  ];
+
+  // Índice Code 128 B: ASCII 32 → índice 0, ASCII 127 → índice 95
+  const startB = 104; // START B
+  const stopIdx = 106;
+
+  // Calcular checksum
+  let check = startB;
+  const indices = [];
+  for(let i=0;i<folio.length;i++){
+    const code = folio.charCodeAt(i) - 32;
+    if(code < 0 || code > 95) continue;
+    indices.push(code);
+    check += code * (i+1);
+  }
+  check = check % 103;
+
+  // Armar secuencia de barras
+  const allPatterns = [C128[startB], ...indices.map(i=>C128[i]), C128[check], [2,3,3,1,1,1,2]];
+
+  // Calcular ancho total
+  const mod = 1.8; // ancho de módulo en px
+  const barH = 50;
+  const quietZone = 10;
+  let totalW = quietZone * 2;
+  allPatterns.forEach(p => { p.forEach(v => { totalW += v * mod; }); });
+
+  let svgBars = '';
+  let x = quietZone;
+  allPatterns.forEach(p => {
+    let bar = true;
+    p.forEach(width => {
+      const w = width * mod;
+      if(bar) svgBars += `<rect x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="${barH}" fill="#111"/>`;
+      x += w;
+      bar = !bar;
+    });
+  });
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW.toFixed(0)}" height="${barH+16}" viewBox="0 0 ${totalW.toFixed(0)} ${barH+16}" style="display:block;max-width:100%;">
+    ${svgBars}
+    <text x="${(totalW/2).toFixed(0)}" y="${barH+13}" text-anchor="middle" font-family="'Courier New',monospace" font-size="9" fill="#555">${folio}</text>
+  </svg>`;
 }
 
 function buildReciboHTML(cobro){
@@ -1340,8 +1428,7 @@ function buildReciboHTML(cobro){
     :''}
     <hr class="receipt-divider">
     <div class="receipt-thanks">¡Gracias por tu preferencia!<br>Vuelve pronto. ✨</div>
-    <div class="receipt-barcode">${barcode}</div>
-    <div style="text-align:center;margin-top:4px;font-size:9px;color:#bbb;font-family:'Courier New',monospace;">${folio}</div>`;
+    <div class="receipt-barcode">${barcode}</div>`;
 }
 
 function buildWhatsappText(cobro){
