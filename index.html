@@ -218,6 +218,33 @@
   .receipt-barcode{font-family:'Courier New',monospace;font-size:9px;color:#bbb;letter-spacing:3px;text-align:center;margin-top:6px;word-break:break-all;}
   .receipt-stamp{border:2px dashed #D4AF37;padding:4px 10px;display:inline-block;font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#6B46C1;margin-top:8px;}
 
+  /* ── TARJETÓN DE FIDELIDAD ── */
+  .tarjeton{background:white;border:3px solid var(--purple);border-radius:14px;padding:22px;max-width:480px;margin:0 auto;font-family:var(--font-sub);position:relative;}
+  .tarjeton-header{display:flex;align-items:center;gap:12px;border-bottom:2px dashed var(--border);padding-bottom:14px;margin-bottom:14px;}
+  .tarjeton-logo{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);flex-shrink:0;}
+  .tarjeton-biz-name{font-family:var(--font-heading);font-size:1.3rem;font-weight:700;color:var(--purple);line-height:1.1;}
+  .tarjeton-biz-meta{font-size:11px;color:var(--mid);line-height:1.4;margin-top:2px;}
+  .tarjeton-title{text-align:center;font-family:var(--font-heading);font-size:1rem;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:14px;font-weight:700;}
+  .tarjeton-cliente{background:var(--cream);border-radius:8px;padding:10px 14px;margin-bottom:16px;}
+  .tarjeton-cliente-nombre{font-family:var(--font-heading);font-size:1.15rem;font-weight:700;color:var(--dark);}
+  .tarjeton-cliente-meta{font-size:11.5px;color:var(--mid);margin-top:3px;}
+  .tarjeton-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;}
+  .tarjeton-slot{aspect-ratio:1;border:2px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:var(--light-mid);position:relative;background:var(--cream);}
+  .tarjeton-slot.filled{border-style:solid;border-color:var(--gold);background:linear-gradient(135deg,#fff6e6,#fdf0d8);}
+  .tarjeton-slot .slot-num{position:absolute;top:3px;left:5px;font-size:8px;color:var(--light-mid);font-weight:700;}
+  .tarjeton-slot .slot-check{font-size:1.3rem;color:var(--gold);}
+  .tarjeton-slot .slot-date{font-size:7.5px;color:var(--mid);margin-top:1px;text-align:center;line-height:1.1;}
+  .tarjeton-footer{display:flex;align-items:center;justify-content:space-between;border-top:2px dashed var(--border);padding-top:14px;gap:14px;}
+  .tarjeton-qr-wrap{text-align:center;flex-shrink:0;}
+  .tarjeton-qr-wrap canvas, .tarjeton-qr-wrap img{display:block;margin:0 auto;}
+  .tarjeton-qr-label{font-size:8px;color:var(--light-mid);margin-top:4px;letter-spacing:1px;text-transform:uppercase;}
+  .tarjeton-promo-note{font-size:11px;color:var(--mid);flex:1;}
+  .tarjeton-promo-note b{color:var(--purple);}
+  @media print{
+    #tarjetonPrintArea, #tarjetonPrintArea *{visibility:visible;}
+    #tarjetonPrintArea{position:absolute;left:0;top:0;width:100%;padding:0;margin:0;}
+  }
+
   @media print{
     body *{visibility:hidden;}
     #printArea,#printArea *{visibility:visible;}
@@ -294,6 +321,7 @@
 </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -631,6 +659,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalDetalleCliente')">Cerrar</button>
+      <button class="btn btn-gold" onclick="abrirTarjeton()"><i class="fas fa-id-card"></i> Tarjetón</button>
       <button class="btn btn-primary" id="btnEditarCliente" onclick="editarClienteActual()"><i class="fas fa-edit"></i> Editar</button>
     </div>
   </div>
@@ -656,6 +685,55 @@
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalVisita')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarVisita()"><i class="fas fa-check"></i> Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TARJETÓN DE CLIENTE -->
+<div class="modal-backdrop" id="modalTarjeton">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span><i class="fas fa-id-card" style="margin-right:8px;"></i>Tarjetón de Fidelidad</span>
+      <button class="modal-close" onclick="closeModal('modalTarjeton')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="tarjetonPrintArea">
+      <div class="tarjeton" id="tarjetonContent"></div>
+    </div>
+    <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
+      <button class="btn btn-outline" onclick="imprimirTarjeton()" style="flex:1;min-width:100px;justify-content:center;">
+        <i class="fas fa-print"></i> Imprimir
+      </button>
+      <button class="btn btn-outline" onclick="guardarTarjetonPDF()" style="flex:1;min-width:100px;justify-content:center;background:#e8f4fd;border-color:#2980b9;color:#2980b9;">
+        <i class="fas fa-file-pdf"></i> Guardar PDF
+      </button>
+      <button class="btn btn-primary" onclick="closeModal('modalTarjeton')" style="flex:1;min-width:100px;justify-content:center;">
+        <i class="fas fa-check"></i> Listo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ASISTENCIA QR (escaneo) -->
+<div class="modal-backdrop" id="modalAsistenciaQR">
+  <div class="modal">
+    <div class="modal-header">
+      <span><i class="fas fa-qrcode" style="margin-right:8px;"></i>Registrar Asistencia</span>
+      <button class="modal-close" onclick="closeModal('modalAsistenciaQR')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="asistenciaQRInfo" style="background:var(--cream);border-radius:8px;padding:12px 14px;font-size:14px;margin-bottom:1rem;"></div>
+      <div class="form-group">
+        <label class="form-label">Servicio realizado</label>
+        <select id="asistencia-servicio" class="form-control">
+          <option value="">— Seleccionar —</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Monto cobrado (MXN)</label><input type="number" id="asistencia-monto" class="form-control" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label class="form-label">Notas</label><input type="text" id="asistencia-notas" class="form-control" placeholder="Opcional"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalAsistenciaQR')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAsistenciaQR()"><i class="fas fa-check"></i> Registrar Asistencia</button>
     </div>
   </div>
 </div>
@@ -965,8 +1043,10 @@ window.initApp = async function(){
 
   // Clientes listener
   if(unsubClientes) unsubClientes();
+  let clientesPrimeraCarga=true;
   unsubClientes=onSnapshot(query(collection(db,'users',uid,'clientes'),orderBy('nombre','asc')),snap=>{
     clientes=snap.docs.map(d=>({id:d.id,...d.data()})); renderClientes(); renderClienteStats();
+    if(clientesPrimeraCarga){ clientesPrimeraCarga=false; checkQRScanOnLoad(); }
   },()=>setSyncing('error'));
 
   // Promos listener
@@ -1523,6 +1603,7 @@ function renderClientes(){
       <div class="client-actions" style="margin-top:10px;">
         <button class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="abrirDetalle('${c.id}')"><i class="fas fa-eye"></i> Ver</button>
         <button class="btn btn-cobrar" style="font-size:12px;padding:6px 12px;" onclick="abrirVisita('${c.id}')"><i class="fas fa-plus"></i> Visita</button>
+        <button class="btn btn-gold" style="font-size:12px;padding:6px 12px;" onclick="abrirTarjeton('${c.id}')"><i class="fas fa-id-card"></i></button>
         <button class="btn btn-danger" onclick="eliminarCliente('${c.id}')"><i class="fas fa-trash"></i></button>
       </div>
     </div>`;
@@ -1590,6 +1671,237 @@ async function abrirDetalle(id){
   openModal('modalDetalleCliente');
 }
 window.abrirDetalle=abrirDetalle;
+
+/* ── Tarjetón de Fidelidad ── */
+let tarjetonClienteId=null;
+const TOTAL_SLOTS_TARJETON=10;
+
+async function abrirTarjeton(id){
+  const targetId = id || clienteActualId;
+  if(!targetId) return;
+  tarjetonClienteId = targetId;
+  const c = clientes.find(x=>x.id===targetId); if(!c) return;
+
+  // Cargar visitas más recientes (si no vienen ya cacheadas para este cliente)
+  let visitas;
+  if(visitasDetalleCache && clienteActualId===targetId){
+    visitas = visitasDetalleCache;
+  } else {
+    const {collection,query,orderBy,getDocs} = window._fb;
+    const snap = await getDocs(query(collection(window._db,'users',window._uid,'clientes',targetId,'visitas'),orderBy('fecha','desc')));
+    visitas = snap.docs.map(d=>({id:d.id,...d.data()}));
+  }
+
+  renderTarjeton(c, visitas);
+  openModal('modalTarjeton');
+
+  // Generar QR después de que el contenedor esté en el DOM
+  setTimeout(()=>generarQRTarjeton(targetId), 50);
+}
+window.abrirTarjeton=abrirTarjeton;
+
+function renderTarjeton(c, visitas){
+  const visitasOrdenadas = [...visitas].sort((a,b)=> new Date(a.fecha) - new Date(b.fecha));
+  const totalVisitas = c.visitas || visitas.length || 0;
+  const cicloVisitas = totalVisitas % TOTAL_SLOTS_TARJETON; // posición dentro del ciclo actual de 10
+  const visitasParaMostrar = visitasOrdenadas.slice(-TOTAL_SLOTS_TARJETON);
+
+  let slotsHTML = '';
+  for(let i=0; i<TOTAL_SLOTS_TARJETON; i++){
+    const visita = i < cicloVisitas ? visitasParaMostrar[visitasParaMostrar.length - cicloVisitas + i] : null;
+    if(visita){
+      slotsHTML += `<div class="tarjeton-slot filled">
+        <span class="slot-num">${i+1}</span>
+        <span class="slot-check"><i class="fas fa-star"></i></span>
+        <span class="slot-date">${fmtDate(visita.fecha)}</span>
+      </div>`;
+    } else {
+      slotsHTML += `<div class="tarjeton-slot"><span class="slot-num">${i+1}</span></div>`;
+    }
+  }
+
+  const nextPromo = getNextPromo(totalVisitas);
+  const promoNote = nextPromo
+    ? `Te faltan <b>${Math.max(0, TOTAL_SLOTS_TARJETON - cicloVisitas)}</b> visita(s) para: <b>${esc(nextPromo.descripcion)}</b>`
+    : `<b>¡Felicidades!</b> Has alcanzado todas las promociones disponibles 🎉`;
+
+  $('tarjetonContent').innerHTML = `
+    <div class="tarjeton-header">
+      <img class="tarjeton-logo" src="${getLogoDataURI()}" alt="logo">
+      <div>
+        <div class="tarjeton-biz-name">${esc(config.nombre||'StarShine Nails')}</div>
+        <div class="tarjeton-biz-meta">
+          ${config.direccion?esc(config.direccion)+'<br>':''}
+          ${config.tel?'Tel: '+esc(config.tel):''}
+        </div>
+      </div>
+    </div>
+    <div class="tarjeton-title">✨ Tarjetón de Fidelidad ✨</div>
+    <div class="tarjeton-cliente">
+      <div class="tarjeton-cliente-nombre">${esc(c.nombre)}</div>
+      <div class="tarjeton-cliente-meta">
+        ${c.telefono?'<i class="fas fa-phone fa-xs"></i> '+esc(c.telefono):''}
+        ${c.telefono&&c.email?' &nbsp;·&nbsp; ':''}
+        ${c.email?'<i class="fas fa-envelope fa-xs"></i> '+esc(c.email):''}
+        <br><span style="font-size:11px;">Visitas totales: <b>${totalVisitas}</b></span>
+      </div>
+    </div>
+    <div class="tarjeton-grid">${slotsHTML}</div>
+    <div class="tarjeton-footer">
+      <div class="tarjeton-promo-note">${promoNote}</div>
+      <div class="tarjeton-qr-wrap">
+        <div id="tarjetonQR"></div>
+        <div class="tarjeton-qr-label">Escanear para visita</div>
+      </div>
+    </div>
+  `;
+}
+
+function getLogoDataURI(){
+  // Reutiliza el mismo logo embebido que el header
+  const img = document.querySelector('#headerLogo img');
+  return img ? img.src : '';
+}
+
+function generarQRTarjeton(clienteId){
+  const qrContainer = $('tarjetonQR');
+  if(!qrContainer) return;
+  qrContainer.innerHTML = '';
+  // El QR codifica una URL que, al abrirse en este mismo sitio,
+  // detecta el parámetro y abre el flujo de registro de asistencia
+  const baseUrl = window.location.origin + window.location.pathname;
+  const qrUrl = `${baseUrl}?cliente=${encodeURIComponent(clienteId)}`;
+  new QRCode(qrContainer, {
+    text: qrUrl,
+    width: 88,
+    height: 88,
+    colorDark: '#2d1b3d',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+}
+
+function imprimirTarjeton(){
+  const c = clientes.find(x=>x.id===tarjetonClienteId);
+  const prevTitle = document.title;
+  if(c) document.title = `Tarjeton_${c.nombre.replace(/\s+/g,'_')}`;
+  window.print();
+  document.title = prevTitle;
+}
+window.imprimirTarjeton = imprimirTarjeton;
+
+async function guardarTarjetonPDF(){
+  const c = clientes.find(x=>x.id===tarjetonClienteId);
+  const nombre = (c?.nombre||'cliente').replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g,'').trim().replace(/\s+/g,'_');
+  const filename = `Tarjeton_${nombre}.pdf`;
+
+  const btn = document.querySelector('[onclick="guardarTarjetonPDF()"]');
+  const origText = btn ? btn.innerHTML : '';
+  if(btn){ btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...'; btn.disabled = true; }
+
+  try {
+    const el = $('tarjetonContent');
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pxToMm = 0.264583;
+    const imgW = canvas.width * pxToMm / 2;
+    const imgH = canvas.height * pxToMm / 2;
+    const pdf = new jsPDF({ orientation: imgH > imgW ? 'portrait' : 'landscape', unit: 'mm', format: [imgW + 10, imgH + 10] });
+    pdf.addImage(imgData, 'PNG', 5, 5, imgW, imgH);
+    pdf.save(filename);
+    showToast(`✅ PDF guardado: ${filename}`);
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Error al generar PDF');
+  } finally {
+    if(btn){ btn.innerHTML = origText; btn.disabled = false; }
+  }
+}
+window.guardarTarjetonPDF = guardarTarjetonPDF;
+
+/* ── Asistencia vía escaneo de QR ── */
+let asistenciaClienteId=null;
+let asistenciaDesdeQR=false;
+function abrirAsistenciaQR(clienteId, desdeQR=false){
+  const c = clientes.find(x=>x.id===clienteId);
+  if(!c){ showToast('⚠ Cliente no encontrado'); return; }
+  asistenciaClienteId = clienteId;
+  asistenciaDesdeQR = !!desdeQR;
+  const badgeQR = desdeQR ? `<div style="display:inline-flex;align-items:center;gap:5px;background:#e8f4fd;color:#2980b9;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;margin-bottom:8px;"><i class="fas fa-qrcode"></i> Detectado por código QR</div><br>` : '';
+  $('asistenciaQRInfo').innerHTML = `${badgeQR}<i class="fas fa-id-badge" style="margin-right:6px;color:var(--gold);"></i><b>${esc(c.nombre)}</b>${c.telefono?' · '+esc(c.telefono):''}<br><span style="font-size:12px;color:var(--light-mid);">Visitas actuales: ${c.visitas||0}</span>`;
+  buildServicioOptions('asistencia-servicio');
+  $('asistencia-monto').value='';
+  $('asistencia-notas').value='';
+  openModal('modalAsistenciaQR');
+  // Enfoca el selector de servicio para que solo falte elegir y confirmar
+  setTimeout(()=>{ $('asistencia-servicio')?.focus(); }, 150);
+}
+window.abrirAsistenciaQR = abrirAsistenciaQR;
+
+async function confirmarAsistenciaQR(){
+  const uid = window._uid;
+  const c = clientes.find(x=>x.id===asistenciaClienteId); if(!c) return;
+  const servicio = $('asistencia-servicio').value;
+  if(!servicio){ showToast('⚠ Selecciona el servicio realizado'); return; }
+  const visita = {
+    servicio,
+    fecha: new Date().toISOString().split('T')[0],
+    monto: parseFloat($('asistencia-monto').value)||0,
+    notas: $('asistencia-notas').value.trim() || 'Registrado vía QR',
+    creadoEn: new Date().toISOString()
+  };
+  setSyncing('syncing');
+  const newCount = (c.visitas||0)+1;
+  await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'clientes',asistenciaClienteId,'visitas'),visita);
+  await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'clientes',asistenciaClienteId),{visitas:newCount});
+  closeModal('modalAsistenciaQR');
+  asistenciaDesdeQR = false;
+  const promo = getPromoForVisitas(newCount);
+  if(promo) setTimeout(()=>showToast(`🎉 ${esc(c.nombre)} desbloqueó: ${promo.descripcion}`),400);
+  else showToast(`✅ Asistencia registrada (${newCount} visitas)`);
+  // Limpiar el parámetro de la URL para evitar reprocesar al refrescar
+  history.replaceState({}, document.title, window.location.pathname);
+}
+window.confirmarAsistenciaQR = confirmarAsistenciaQR;
+
+// Detecta si la app se abrió desde un QR escaneado (?cliente=ID)
+let qrClienteIdPendiente = null; // se guarda apenas carga la página, antes incluso del login
+
+function captureQRParamEarly(){
+  const params = new URLSearchParams(window.location.search);
+  const clienteId = params.get('cliente');
+  if(clienteId) qrClienteIdPendiente = clienteId;
+}
+captureQRParamEarly(); // se ejecuta inmediatamente al parsear este script
+
+function checkQRScanOnLoad(){
+  const clienteId = qrClienteIdPendiente;
+  if(!clienteId) return;
+
+  let intentos = 0;
+  const maxIntentos = 20; // ~10 segundos de reintentos (500ms cada uno)
+
+  const tryOpen = ()=>{
+    const c = clientes.find(x=>x.id===clienteId);
+    if(c){
+      qrClienteIdPendiente = null;
+      history.replaceState({}, document.title, window.location.pathname);
+      abrirAsistenciaQR(clienteId, true);
+      return;
+    }
+    intentos++;
+    if(intentos < maxIntentos && clientes.length === 0){
+      // Firestore probablemente sigue cargando; reintenta
+      setTimeout(tryOpen, 500);
+    } else {
+      qrClienteIdPendiente = null;
+      showToast('⚠ Cliente del código QR no encontrado');
+      history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+  tryOpen();
+}
 
 function switchClienteTab(tab,el,cOverride){
   document.querySelectorAll('.tab-inner-btn').forEach(b=>b.classList.remove('active'));
