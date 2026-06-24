@@ -322,6 +322,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
 
@@ -436,9 +437,12 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem;" id="clienteStats"></div>
 
       <!-- Search -->
-      <div class="client-search" style="margin-bottom:1rem;">
-        <i class="fas fa-search search-icon"></i>
-        <input type="text" id="clienteSearch" class="form-control" placeholder="Buscar cliente por nombre o teléfono..." oninput="renderClientes()">
+      <div style="display:flex;gap:8px;margin-bottom:1rem;align-items:stretch;">
+        <div class="client-search" style="margin-bottom:0;flex:1;">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" id="clienteSearch" class="form-control" placeholder="Buscar cliente por nombre o teléfono..." oninput="renderClientes()">
+        </div>
+        <button class="btn btn-primary" style="flex-shrink:0;white-space:nowrap;" onclick="abrirEscanerQR()"><i class="fas fa-qrcode"></i> Escanear</button>
       </div>
 
       <div id="listaClientes">
@@ -738,6 +742,26 @@
   </div>
 </div>
 
+<!-- MODAL ESCÁNER QR (cámara) -->
+<div class="modal-backdrop" id="modalEscanerQR">
+  <div class="modal">
+    <div class="modal-header">
+      <span><i class="fas fa-camera" style="margin-right:8px;"></i>Escanear Tarjetón</span>
+      <button class="modal-close" onclick="cerrarEscanerQR()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--mid);margin-bottom:10px;text-align:center;">Apunta la cámara al código QR del tarjetón del cliente</p>
+      <div id="qrReaderWrap" style="border-radius:12px;overflow:hidden;background:#000;min-height:260px;display:flex;align-items:center;justify-content:center;">
+        <div id="qrReader" style="width:100%;"></div>
+      </div>
+      <div id="qrReaderStatus" style="text-align:center;font-size:12px;color:var(--light-mid);margin-top:10px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="cerrarEscanerQR()" style="width:100%;justify-content:center;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL PROMOCIONES -->
 <div class="modal-backdrop" id="modalPromos">
   <div class="modal modal-lg">
@@ -971,7 +995,12 @@ window.closeModal = closeModal; window.openModal = openModal;
 
 function setSyncing(s){ const d=$('syncDot'); d.className='sync-dot'+(s==='syncing'?' syncing':s==='error'?' error':''); }
 
-document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('click',function(e){ if(e.target===this)this.classList.remove('open'); }));
+document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('click',function(e){
+  if(e.target===this){
+    if(this.id==='modalEscanerQR'){ cerrarEscanerQR(); }
+    else { this.classList.remove('open'); }
+  }
+}));
 
 /* ── state ── */
 let citas=[], cobros=[], config={nombre:'StarShine Nails',direccion:'',tel:''}, gallery=[], citaActual=null;
@@ -1864,6 +1893,98 @@ async function confirmarAsistenciaQR(){
   history.replaceState({}, document.title, window.location.pathname);
 }
 window.confirmarAsistenciaQR = confirmarAsistenciaQR;
+
+/* ── Escáner de QR con cámara (html5-qrcode) ── */
+let html5QrScanner = null;
+let escaneoEnProceso = false;
+
+function extraerClienteIdDeTexto(texto){
+  // Soporta tanto URLs completas (?cliente=ID) como un ID plano
+  try{
+    const url = new URL(texto);
+    const id = url.searchParams.get('cliente');
+    if(id) return id;
+  } catch(e) { /* no es una URL válida, seguimos */ }
+  // Si el texto no es URL, asumimos que es el ID directo (por si el QR solo contiene el ID)
+  return texto.trim();
+}
+
+function abrirEscanerQR(){
+  escaneoEnProceso = false;
+  $('qrReaderStatus').textContent = 'Iniciando cámara...';
+  openModal('modalEscanerQR');
+
+  if(typeof Html5Qrcode === 'undefined'){
+    $('qrReaderStatus').textContent = '⚠ No se pudo cargar el lector de QR. Verifica tu conexión.';
+    return;
+  }
+
+  html5QrScanner = new Html5Qrcode('qrReader');
+  const config = { fps: 10, qrbox: { width: 230, height: 230 } };
+
+  Html5Qrcode.getCameras().then(cameras => {
+    if(!cameras || !cameras.length){
+      $('qrReaderStatus').textContent = '⚠ No se encontró ninguna cámara disponible.';
+      return;
+    }
+    // Prefiere la cámara trasera si existe (mejor para escanear)
+    const backCam = cameras.find(c => /back|rear|trasera|environment/i.test(c.label));
+    const cameraId = backCam ? backCam.id : cameras[cameras.length-1].id;
+
+    html5QrScanner.start(
+      cameraId,
+      config,
+      onQRScanSuccess,
+      () => {} // errores de frame individuales se ignoran (normal mientras no detecta nada)
+    ).then(()=>{
+      $('qrReaderStatus').textContent = 'Cámara lista. Apunta al código QR.';
+    }).catch(err=>{
+      console.error(err);
+      $('qrReaderStatus').textContent = '⚠ No se pudo acceder a la cámara. Revisa los permisos.';
+    });
+  }).catch(err=>{
+    console.error(err);
+    $('qrReaderStatus').textContent = '⚠ No se pudo acceder a la cámara. Revisa los permisos del navegador.';
+  });
+}
+window.abrirEscanerQR = abrirEscanerQR;
+
+function onQRScanSuccess(decodedText){
+  if(escaneoEnProceso) return; // evita disparos múltiples por el mismo frame
+  escaneoEnProceso = true;
+
+  const clienteId = extraerClienteIdDeTexto(decodedText);
+  const c = clientes.find(x=>x.id===clienteId);
+
+  if(!c){
+    showToast('⚠ Código QR no corresponde a ningún cliente registrado');
+    escaneoEnProceso = false; // permite reintentar
+    return;
+  }
+
+  // Pausa el escáner mientras se procesa, vibra (si el dispositivo lo soporta) y cierra
+  if(navigator.vibrate) navigator.vibrate(120);
+  $('qrReaderStatus').textContent = `✓ ${c.nombre} identificado`;
+
+  cerrarEscanerQR().then(()=>{
+    abrirAsistenciaQR(clienteId, true);
+  });
+}
+
+function cerrarEscanerQR(){
+  closeModal('modalEscanerQR');
+  escaneoEnProceso = false;
+  if(html5QrScanner){
+    return html5QrScanner.stop().then(()=>{
+      html5QrScanner.clear();
+      html5QrScanner = null;
+    }).catch(()=>{
+      html5QrScanner = null;
+    });
+  }
+  return Promise.resolve();
+}
+window.cerrarEscanerQR = cerrarEscanerQR;
 
 // Detecta si la app se abrió desde un QR escaneado (?cliente=ID)
 let qrClienteIdPendiente = null; // se guarda apenas carga la página, antes incluso del login
