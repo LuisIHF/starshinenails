@@ -549,8 +549,8 @@
     </div>
     <div class="login-err" id="loginErr"></div>
     <div class="form-group">
-      <label class="form-label">Correo electrónico</label>
-      <input type="email" id="loginEmail" class="form-control" placeholder="correo@ejemplo.com" onkeydown="if(event.key==='Enter')doLogin()">
+      <label class="form-label">Usuario</label>
+      <input type="text" id="loginEmail" class="form-control" placeholder="usuario o correo" autocapitalize="off" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div class="form-group">
       <label class="form-label">Contraseña</label>
@@ -1089,7 +1089,8 @@
     <div class="modal-header"><span><i class="fas fa-user-plus" style="margin-right:8px;"></i>Agregar Usuario</span><button class="modal-close" onclick="closeModal('modalRegister')"><i class="fas fa-times"></i></button></div>
     <div class="modal-body">
       <div class="login-err" id="regErr"></div>
-      <div class="form-group"><label class="form-label">Correo electrónico</label><input type="email" id="regEmail" class="form-control" placeholder="correo@ejemplo.com"></div>
+      <div class="form-group"><label class="form-label">Correo electrónico</label><input type="email" id="regEmail" class="form-control" placeholder="correo@ejemplo.com" oninput="sugerirUsuario()"></div>
+      <div class="form-group"><label class="form-label">Usuario para iniciar sesión</label><input type="text" id="regUsuario" class="form-control" placeholder="usuario" autocapitalize="off" oninput="marcarUsuarioManual()"><div style="font-size:11px;color:var(--light-mid);margin-top:4px;">Se sugiere a partir del correo, puedes cambiarlo. Con esto (no el correo) inicia sesión.</div></div>
       <div class="form-group"><label class="form-label">Contraseña (mín. 6 caracteres)</label><input type="password" id="regPass" class="form-control" placeholder="••••••••"></div>
       <div class="form-group">
         <label class="form-label">Rol / Privilegios</label>
@@ -1159,6 +1160,23 @@ window._db   = db;
 window._fb   = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
                  collection, doc, addDoc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, where, orderBy, onSnapshot };
 
+// Deriva un nombre de usuario simple a partir de un correo, ej:
+// luisihf92@outlook.com -> luisihf
+function derivarUsuario(email){
+  const local = String(email||'').split('@')[0] || '';
+  return local.replace(/[0-9]+$/,'').toLowerCase().replace(/[^a-z0-9._-]/g,'') || 'user';
+}
+
+// Encuentra un nombre de usuario libre en la colección "usernames",
+// agregando un sufijo numérico si hace falta.
+async function usuarioLibre(base){
+  let candidato = base, i = 1;
+  while((await getDoc(doc(db,'usernames',candidato))).exists()){
+    i++; candidato = base + i;
+  }
+  return candidato;
+}
+
 // Resuelve el rol del usuario autenticado y sobre qué "negocio" (uid de
 // datos) va a trabajar. Todo se guarda en la colección raíz "equipo",
 // con id de documento = uid de Firebase Auth del usuario.
@@ -1169,14 +1187,26 @@ async function resolveTeamAccess(user){
     const esAdminPrincipal = (user.email||'').toLowerCase() === ADMIN_EMAIL;
     // Primer ingreso: si es el correo Admin definido arriba, o si es una
     // cuenta ya existente (creada antes de este sistema de roles), se
-    // vuelve dueño de sus propios datos con rol Administrador.
+    // vuelve dueño de sus propios datos con rol Administrador. También se
+    // le asigna un nombre de usuario corto para futuros inicios de sesión.
+    const usuario = await usuarioLibre(derivarUsuario(user.email));
     await setDoc(memberRef, {
       email:      user.email || '',
+      username:   usuario,
+      authEmail:  user.email || '',
       role:       'admin',
       ownerUid:   user.uid,
       principal:  esAdminPrincipal,
       creadoEn:   new Date().toISOString()
     });
+    await setDoc(doc(db,'usernames',usuario), { uid:user.uid, authEmail:user.email||'', ownerUid:user.uid });
+    memberSnap = await getDoc(memberRef);
+  } else if(!memberSnap.data().username){
+    // Cuenta existente creada antes de este sistema de usuarios: se le
+    // asigna un nombre de usuario ahora, sin afectar su acceso actual.
+    const usuario = await usuarioLibre(derivarUsuario(user.email));
+    await setDoc(memberRef, { username: usuario, authEmail: user.email||'' }, { merge:true });
+    await setDoc(doc(db,'usernames',usuario), { uid:user.uid, authEmail:user.email||'', ownerUid: memberSnap.data().ownerUid || user.uid });
     memberSnap = await getDoc(memberRef);
   }
   const data = memberSnap.data() || {};
@@ -1188,32 +1218,65 @@ async function resolveTeamAccess(user){
   const badge = document.getElementById('userRoleBadge');
   const emailEl = document.getElementById('userEmail');
   if(badge)  badge.textContent = window._role === 'vendedor' ? 'Vendedor' : 'Admin';
-  if(emailEl) emailEl.textContent = window._esAdminPrincipal ? '' : (user.email || '');
+  if(emailEl) emailEl.textContent = data.username ? '@'+data.username : (window._esAdminPrincipal ? '' : (user.email || ''));
   if(window.applyRolePermissions) window.applyRolePermissions();
 }
 window._ADMIN_EMAIL = ADMIN_EMAIL;
 
 // Crea un nuevo usuario (Auth + doc en "equipo") sin afectar la sesión del
 // Admin que lo está creando. Solo el rol 'admin' puede llamar esto.
-window.crearMiembroEquipo = async function(email, pass, role){
+// El usuario NUNCA inicia sesión con el correo: se usa el "usuario" corto
+// (username) que el Admin define al crearlo, con una contraseña propia.
+window.crearMiembroEquipo = async function(email, username, pass, role){
   if(window._role !== 'admin') throw new Error('No autorizado');
+  let usuario = derivarUsuario(username || email);
+  try {
+    if((await getDoc(doc(db,'usernames',usuario))).exists()){
+      throw new Error('Ese nombre de usuario ya está en uso, elige otro.');
+    }
+  } catch(e){
+    if(e.code === 'permission-denied'){
+      throw new Error('Firestore bloqueó la verificación del usuario (permission-denied). Revisa las reglas de seguridad de Firestore para la colección "usernames".');
+    }
+    throw e;
+  }
+  // Correo interno sintético usado solo por Firebase Auth para el login;
+  // el correo real ingresado se guarda aparte como referencia/contacto.
+  const authEmail = `${usuario}@starshinenails.local`;
   const secAuth = getSecondaryAuth();
   let cred;
   try {
-    cred = await createUserWithEmailAndPassword(secAuth, email, pass);
+    cred = await createUserWithEmailAndPassword(secAuth, authEmail, pass);
   } finally {
     try { await signOut(secAuth); } catch(e){}
   }
   const newUid = cred.user.uid;
-  await setDoc(doc(db,'equipo',newUid), {
-    email:     email,
-    role:      role === 'admin' ? 'admin' : 'vendedor',
-    ownerUid:  window._uid,
-    principal: false,
-    creadoEn:  new Date().toISOString(),
-    creadoPor: window._authUid
-  });
+  try {
+    await setDoc(doc(db,'equipo',newUid), {
+      email:     email || '',
+      username:  usuario,
+      authEmail: authEmail,
+      role:      role === 'admin' ? 'admin' : 'vendedor',
+      ownerUid:  window._uid,
+      principal: false,
+      creadoEn:  new Date().toISOString(),
+      creadoPor: window._authUid
+    });
+    await setDoc(doc(db,'usernames',usuario), { uid:newUid, authEmail, ownerUid:window._uid });
+  } catch(e){
+    if(e.code === 'permission-denied'){
+      throw new Error('La cuenta de acceso "'+usuario+'" se creó, pero Firestore bloqueó el guardado (permission-denied). Actualiza las reglas de seguridad para permitir escritura en "equipo" y "usernames" a usuarios autenticados, y luego usa un usuario distinto (este ya quedó reservado).');
+    }
+    throw e;
+  }
   return newUid;
+};
+
+// Busca el correo interno de Firebase Auth asociado a un nombre de usuario,
+// para poder iniciar sesión escribiendo solo el "usuario" (sin @).
+window.buscarCorreoPorUsuario = async function(username){
+  const snap = await getDoc(doc(db,'usernames', derivarUsuario(username)));
+  return snap.exists() ? snap.data().authEmail : null;
 };
 
 // Elimina el acceso de un miembro del equipo (borra su doc en "equipo").
@@ -1315,10 +1378,17 @@ let unsubEquipo=null;
 
 /* ══ AUTH ══ */
 async function doLogin(){
-  const email=$('loginEmail').value.trim(), pass=$('loginPass').value;
+  const raw=$('loginEmail').value.trim(), pass=$('loginPass').value;
   const err=$('loginErr'); err.classList.remove('show');
   $('loginBtn').disabled=true; $('loginBtn').innerHTML='<i class="fas fa-spinner fa-spin"></i> Entrando...';
-  try { await window._fb.signInWithEmailAndPassword(window._auth,email,pass); }
+  try {
+    let authEmail = raw;
+    if(!raw.includes('@')){
+      authEmail = await window.buscarCorreoPorUsuario(raw);
+      if(!authEmail) throw {code:'auth/user-not-found'};
+    }
+    await window._fb.signInWithEmailAndPassword(window._auth,authEmail,pass);
+  }
   catch(e){ err.textContent=faeMsg(e.code); err.classList.add('show'); $('loginBtn').disabled=false; $('loginBtn').innerHTML='<i class="fas fa-sign-in-alt"></i> Iniciar sesión'; }
 }
 window.doLogin=doLogin;
@@ -1326,24 +1396,39 @@ window.doLogin=doLogin;
 function abrirModalUsuario(){
   if(window._role!=='admin'){ showToast('Solo el administrador puede agregar usuarios'); return; }
   $('regEmail').value=''; $('regPass').value=''; $('regRole').value='vendedor';
+  $('regUsuario').value=''; $('regUsuario').dataset.manual='false';
   $('regErr').classList.remove('show');
   openModal('modalRegister');
 }
 window.abrirModalUsuario=abrirModalUsuario;
 
+function sugerirUsuario(){
+  const u=$('regUsuario');
+  if(u.dataset.manual==='true') return;
+  const email=$('regEmail').value.trim();
+  const local=(email.split('@')[0]||'');
+  u.value = local.replace(/[0-9]+$/,'').toLowerCase().replace(/[^a-z0-9._-]/g,'');
+}
+window.sugerirUsuario=sugerirUsuario;
+
+function marcarUsuarioManual(){ $('regUsuario').dataset.manual='true'; }
+window.marcarUsuarioManual=marcarUsuarioManual;
+
 async function doRegister(){
   const email=$('regEmail').value.trim(), pass=$('regPass').value, role=$('regRole').value;
+  const usuario=$('regUsuario').value.trim();
   const err=$('regErr'); err.classList.remove('show');
   if(!email || !pass){ err.textContent='Completa correo y contraseña.'; err.classList.add('show'); return; }
+  if(!usuario){ err.textContent='Escribe un nombre de usuario para iniciar sesión.'; err.classList.add('show'); return; }
   if(pass.length<6){ err.textContent='La contraseña debe tener al menos 6 caracteres.'; err.classList.add('show'); return; }
   const btn=$('regBtn'); btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Creando...';
   try {
-    await window.crearMiembroEquipo(email,pass,role);
+    await window.crearMiembroEquipo(email,usuario,pass,role);
     closeModal('modalRegister');
     showToast('Usuario creado ✓');
     renderUsuariosList();
   }
-  catch(e){ err.textContent=faeMsg(e.code||''); err.classList.add('show'); }
+  catch(e){ err.textContent = e.message || faeMsg(e.code||''); err.classList.add('show'); }
   finally { btn.disabled=false; btn.innerHTML='<i class="fas fa-user-plus"></i> Crear usuario'; }
 }
 window.doRegister=doRegister;
@@ -1447,10 +1532,12 @@ function renderUsuariosList(){
     const esYo = u.id===window._authUid;
     const esPrincipal = !!u.principal;
     const roleLabel = u.role==='admin' ? 'Administrador' : 'Vendedor';
-    const nombreMostrar = esPrincipal ? 'Admin (tú)' : esc(u.email||'—');
+    const nombreMostrar = esPrincipal ? 'Admin (tú)' : (u.username ? '@'+esc(u.username) : esc(u.email||'—'));
+    const subInfo = [u.username?'usuario: @'+esc(u.username):null, u.email?esc(u.email):null].filter(Boolean).join(' · ');
     return `<div class="servicio-item">
       <div>
         <div class="servicio-nombre">${nombreMostrar}${esYo&&!esPrincipal?' (tú)':''}</div>
+        ${subInfo?`<div style="font-size:11px;color:var(--light-mid);margin-top:2px;">${subInfo}</div>`:''}
         <div class="servicio-default-badge" style="margin-top:4px;display:inline-block;">${roleLabel}</div>
       </div>
       ${esPrincipal?'':`<button class="btn-danger" onclick="confirmarEliminarUsuario('${u.id}')"><i class="fas fa-trash"></i></button>`}
