@@ -3163,7 +3163,12 @@ const PRECIOS_DEFAULT = {
 };
 // Merge with any user-saved custom services from localStorage
 function getServicios(){ try{ return JSON.parse(localStorage.getItem('servicios')||'null')||{...PRECIOS_DEFAULT}; }catch{ return{...PRECIOS_DEFAULT}; } }
-function saveServicios(obj){ localStorage.setItem('servicios',JSON.stringify(obj)); }
+function saveServicios(obj){
+  localStorage.setItem('servicios',JSON.stringify(obj)); // respaldo local rápido
+  if(window._db && window._uid && window._fb){
+    window._fb.setDoc(window._fb.doc(window._db,'users',window._uid,'settings','servicios'), {precios:obj}).catch(e=>console.error('No se pudo guardar servicios en la nube', e));
+  }
+}
 let PRECIOS = getServicios();
 const $  = id => document.getElementById(id);
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -3188,7 +3193,8 @@ function buildServicioOptions(selectId, includeOtro=false){
 }
 
 function refreshAllServicioSelects(){
-  PRECIOS=getServicios();
+  // No relee de localStorage aquí: PRECIOS ya vive en memoria (cargado desde
+  // Firestore en initApp, o recién mutado por agregar/editar/eliminar servicio).
   buildServicioOptions('f-servicio');
   buildServicioOptions('visita-servicio',true);
   renderServiciosList();
@@ -3315,10 +3321,24 @@ function faeMsg(code){
 /* ══ INIT ══ */
 window.initApp = async function(){
   const uid=window._uid;
-  const {collection,doc,query,where,orderBy,onSnapshot,getDoc}=window._fb;
+  const {collection,doc,query,where,orderBy,onSnapshot,getDoc,setDoc}=window._fb;
   const db=window._db;
   setSyncing('syncing');
   applyRolePermissions();
+
+  // Servicios/precios: viven en Firestore por negocio (antes solo en localStorage
+  // del navegador, lo que rompía el cobro en empresas/dispositivos nuevos).
+  try{
+    const svcSnap = await getDoc(doc(db,'users',uid,'settings','servicios'));
+    if(svcSnap.exists() && svcSnap.data().precios){
+      PRECIOS = svcSnap.data().precios;
+    } else {
+      // Migración única: si este navegador ya tenía precios guardados de la
+      // versión anterior (o si no hay nada, usa los de fábrica), se suben.
+      PRECIOS = getServicios();
+      await setDoc(doc(db,'users',uid,'settings','servicios'), {precios: PRECIOS});
+    }
+  }catch(e){ console.error('No se pudieron cargar los servicios de Firestore', e); }
 
   // Defaults
   const today=new Date().toISOString().split('T')[0]; $('f-fecha').value=today;
@@ -3644,7 +3664,8 @@ async function confirmarCobro(){
   };
   setSyncing('syncing');
   try{
-    await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'cobros'),cobro);
+    const cobroRef = await window._fb.addDoc(window._fb.collection(window._db,'users',uid,'cobros'),cobro);
+    cobro.id = cobroRef.id; // necesario para que mostrarRecibo() pueda guardar el folio (ticketNum)
     if(citaActual.id){
       await window._fb.updateDoc(window._fb.doc(window._db,'users',uid,'citas',citaActual.id),{estado:'cobrada'});
     }
@@ -3658,7 +3679,15 @@ async function confirmarCobro(){
       if(promo) setTimeout(()=>showToast(`🎉 ${esc(match.nombre)} desbloqueó: ${promo.descripcion}`),600);
     }
     closeModal('modalCobrar'); mostrarRecibo(cobro); showToast('¡Cobro registrado!');
-  } catch(e){ console.error(e); showToast('Error al cobrar'); setSyncing('error'); }
+  } catch(e){
+    console.error('confirmarCobro error:', e);
+    setSyncing('error');
+    if(e.code === 'permission-denied' || /insufficient permissions/i.test(e.message||'')){
+      showToast('⚠ Firestore bloqueó el cobro por permisos. Revisa las reglas de seguridad.');
+    } else {
+      showToast('⚠ Error al cobrar: ' + (e.message || e));
+    }
+  }
 }
 window.confirmarCobro=confirmarCobro;
 
@@ -3776,7 +3805,7 @@ async function mostrarRecibo(cobro){
     if(cobro.id){
       await updateDoc(doc(db,'users',uid,'cobros',cobro.id),{ticketNum:nextNum,whatsappText:savedCobro.whatsappText});
     }
-  }catch(e){ /* silent */ }
+  }catch(e){ console.error('No se pudo asignar folio de ticket:', e); }
 
   reciboActual=savedCobro;
   $('reciboContent').innerHTML=buildReciboHTML(savedCobro);
