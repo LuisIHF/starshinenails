@@ -3330,12 +3330,17 @@ window.initApp = async function(){
   // del navegador, lo que rompía el cobro en empresas/dispositivos nuevos).
   try{
     const svcSnap = await getDoc(doc(db,'users',uid,'settings','servicios'));
-    if(svcSnap.exists() && svcSnap.data().precios){
-      PRECIOS = svcSnap.data().precios;
+    const guardados = svcSnap.exists() ? (svcSnap.data().precios || {}) : {};
+    if(Object.keys(guardados).length > 0){
+      PRECIOS = guardados;
     } else {
-      // Migración única: si este navegador ya tenía precios guardados de la
-      // versión anterior (o si no hay nada, usa los de fábrica), se suben.
-      PRECIOS = getServicios();
+      // No hay nada guardado en Firestore para esta empresa (o quedó vacío por
+      // algún intento anterior). Migración única: si este navegador ya tenía
+      // precios de la versión vieja Y no están vacíos, se usan; si no, se
+      // parte de los servicios de fábrica (localStorage es del navegador, no
+      // de la empresa, así que nunca se confía en él si viene vacío).
+      const legacy = getServicios();
+      PRECIOS = (legacy && Object.keys(legacy).length > 0) ? legacy : {...PRECIOS_DEFAULT};
       await setDoc(doc(db,'users',uid,'settings','servicios'), {precios: PRECIOS});
     }
   }catch(e){ console.error('No se pudieron cargar los servicios de Firestore', e); }
