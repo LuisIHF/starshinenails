@@ -2618,6 +2618,7 @@ import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, si
 import { getFirestore, collection, doc, addDoc, setDoc, getDoc, getDocs, deleteDoc, updateDoc, query, where, orderBy, onSnapshot }
                                    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+console.log('%c StarShine POS build: 2026-09-05-precios-fix ', 'background:#111;color:#D4AF37;font-weight:bold;padding:4px 8px;');
 const firebaseConfig = {
   apiKey:            "AIzaSyA0knTIPGdsHEVPMnd6GXTA7LM9DeDzWy4",
   authDomain:        "starshinenails-pos.firebaseapp.com",
@@ -3162,7 +3163,12 @@ const PRECIOS_DEFAULT = {
   'Permanente':550
 };
 // Merge with any user-saved custom services from localStorage
-function getServicios(){ try{ return JSON.parse(localStorage.getItem('servicios')||'null')||{...PRECIOS_DEFAULT}; }catch{ return{...PRECIOS_DEFAULT}; } }
+function getServicios(){
+  try{
+    const parsed = JSON.parse(localStorage.getItem('servicios')||'null');
+    return (parsed && Object.keys(parsed).length>0) ? parsed : {...PRECIOS_DEFAULT};
+  }catch{ return{...PRECIOS_DEFAULT}; }
+}
 function saveServicios(obj){
   localStorage.setItem('servicios',JSON.stringify(obj)); // respaldo local rápido
   if(window._db && window._uid && window._fb){
@@ -3489,7 +3495,14 @@ function ssnGoTo(tab, el){
 window.ssnGoTo = ssnGoTo;
 
 /* ══ CITAS ══ */
-function autoFillPrecio(){ const s=$('f-servicio').value; if(PRECIOS[s]) $('f-precio').value=PRECIOS[s]; }
+function autoFillPrecio(){
+  const s=$('f-servicio').value;
+  if(!s) return;
+  if(PRECIOS[s]!==undefined){ $('f-precio').value=PRECIOS[s]; return; }
+  // Salvavidas: la opción existe en el select pero no en PRECIOS (raro, pero
+  // por si acaso) — se rellena con el precio de fábrica si existe.
+  if(PRECIOS_DEFAULT[s]!==undefined) $('f-precio').value=PRECIOS_DEFAULT[s];
+}
 window.autoFillPrecio=autoFillPrecio;
 
 async function guardarCita(){
@@ -3573,6 +3586,14 @@ function abrirCobrarRapido(){
   $('cobrarPropina').value='';
   document.querySelectorAll('#tipBtns .tip-btn').forEach(b=>b.classList.remove('active'));
   setFormaPago('efectivo');
+  // Salvavidas: si por lo que sea PRECIOS quedó vacío en este momento,
+  // se rellena en el acto con los servicios de fábrica (nunca se queda sin nada).
+  if(!PRECIOS || Object.keys(PRECIOS).length===0){
+    console.warn('PRECIOS estaba vacío al abrir Cobro rápido — se restauran los servicios de fábrica.');
+    PRECIOS = {...PRECIOS_DEFAULT};
+    saveServicios(PRECIOS);
+    showToast('⚠ No había servicios cargados — se restauraron los de fábrica');
+  }
   buildServicioOptions('cobrarAddServicio');
   renderCobrarItems();
   recalcTotal();
